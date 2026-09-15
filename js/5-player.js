@@ -33,7 +33,14 @@ function createPlayer(name,pos){
     nat:{caps:0,gold:0,bigMoment:0},
     injuries:[],timeline:[],fanRating:50,fame:0,
     lv:'2군',seasonsPlayed:0,peakAge:20,bestWar:0,trainCount:0,
-    gamesTotal:0,seenEvents:[],clutchBonus:0,teamBoost:0,retired:false
+    gamesTotal:0,seenEvents:[],clutchBonus:0,teamBoost:0,retired:false,
+    /* ── v3.0 추가 ── */
+    month:1,                 // 현재 월 (캘린더가 매달 갱신)
+    status:'정상',           // 정상 | 부상 | 재활
+    rehabLeft:0,             // 남은 재활 개월
+    stress:20,               // 0~100. 높으면 컨디션·성장이 눌린다
+    monthLog:[],             // 이번 달에 일어난 일 (메인 화면 "최근")
+    relLog:[]                // 장기 플래그가 언제 세워졌는지 (요구 24)
   };
   p.timeline.push({y:2026,t:`${TEAM(team.id).name} ${rnd}라운드 지명`});
   return p;
@@ -81,13 +88,17 @@ function potRoom(p,k){
   return clamp(gap/26,-0.2,1.25)*(1+tEff(p,'potential'));
 }
 
-/* ── 훈련 ── */
+/* ── 훈련 ──
+   v3.0: v2.1은 훈련 기회가 연 2회였는데 월간 시스템에서는 연 최대 9회다.
+   회당 성장을 그대로 두면 커리어 WAR 중앙값이 21 → 29로 튄다(실측).
+   TRAIN_SCALE로 회당 성장을 낮춰 연간 총 성장량을 v2.1 수준에 맞춘다. */
+const TRAIN_SCALE=.52;
 function doTraining(p,t,mult0,fatMul){
   mult0=mult0||1;fatMul=fatMul===undefined?1:fatMul;
   const log=[];
   p.trainCount++;
   const teamDev=(p.pos==='pitcher'?TEAM(p.team).pdev:TEAM(p.team).dev)/10;
-  const mult=(1+tEff(p,'train')+teamDev)*ageCurve(p)*(p.cond>=3?1.08:p.cond<=1?.85:1)*mult0;
+  const mult=(1+tEff(p,'train')+teamDev)*ageCurve(p)*(p.cond>=3?1.08:p.cond<=1?.85:1)*mult0*TRAIN_SCALE;
   if(t.rest){
     const r=1+tEff(p,'rest');
     p.fatigue=clamp(p.fatigue+t.fatigue*r,0,100);
@@ -118,7 +129,9 @@ function updateCond(p){
   if(p.fatigue<20)c=4; else if(p.fatigue<38)c=3; else if(p.fatigue<60)c=2;
   else if(p.fatigue<80)c=1; else c=0;
   c+=Math.round((p.st.mental-50)/40);
-  c=clamp(c+ (tEff(p,'condFloor')?0:0),0,4);
+  const sx=p.stress||0;                        // v3.0 — 스트레스가 컨디션을 깎는다
+  if(sx>=80)c-=2; else if(sx>=60)c-=1;
+  c=clamp(c,0,4);
   if(tEff(p,'condFloor'))c=Math.max(c,1);
   if(tEff(p,'condCeil'))c=Math.min(c,3);
   p.cond=clamp(c,0,4);
@@ -199,7 +212,12 @@ function simHalf(p,half,bonus,frac,seg){
   }
   const hi=segmentHighlight(p,seg||{m:[4,5]});
   if(hi)log.push(hi);
-  p.fatigue=clamp(p.fatigue+(42*full*frac*2)*(1+tEff(p,'staminaCost'))-ab(p,'stamina')*.09,0,100);
+  /* v3.0 — 회복항도 frac에 비례해야 한다.
+     v2.1은 3회 호출 × .09 = 시즌 .27·체력 이었다. 월간(6회)에서 Σfrac*2 = 2 이므로
+     계수를 .135로 두면 시즌 총 회복량이 .27·체력로 정확히 보존된다.
+     (이 스케일링을 빼면 회복이 2배가 되어 피로도가 쌓이지 않는다) */
+  p.fatigue=clamp(p.fatigue+(42*full*frac*2)*(1+tEff(p,'staminaCost'))
+                  -ab(p,'stamina')*.135*(frac*2),0,100);
   p.gamesTotal+=s.g;
   expGrowth(p,full*frac*2);
   updateCond(p);
@@ -259,6 +277,10 @@ function rollInjury(p,full){
   p.missGames=(p.missGames||0)+miss;
   p.injuries.push({y:p.year,days});
   p.fatigue=clamp(p.fatigue-15,0,100);
+  /* v3.0 — 부상은 월 단위 상태가 된다. 그 달부터 경기에 못 나간다 */
+  p.status='부상';
+  p.rehabLeft=Math.max(1,Math.round(days*(1-tEff(p,'rehab')*.4)/30));
+  p.stress=clamp((p.stress||20)+14,0,100);
   if(days>=90){
     const k=p.pos==='pitcher'?'velo':'speed';
     p.st[k]=clamp(round(p.st[k]-R.f(1.5,4),1),1,100);

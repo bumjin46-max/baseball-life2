@@ -39,6 +39,41 @@ button:focus-visible,a:focus-visible,input:focus-visible{outline:2px solid var(-
 .cond.c4{color:var(--green);border-color:rgba(143,214,166,.5)}
 .cond.c0,.cond.c1{color:var(--red);border-color:rgba(210,96,79,.5)}
 
+/* ── v3.0 인생 보드 (프린세스메이커형 상단 상태창) ── */
+.lifeboard{border:1px solid var(--line);background:linear-gradient(180deg,#16281f,#0e1b17);
+  margin-bottom:14px;position:sticky;top:env(safe-area-inset-top,0px);z-index:30}
+.lb-top{padding:11px 16px 9px;border-bottom:1px solid var(--line)}
+.lb-date{font-family:var(--digit);font-size:26px;letter-spacing:.02em;line-height:1.1;color:var(--lamp)}
+.lb-date b{font-weight:400}
+.lb-date .dim{font-family:var(--font);font-size:12px;margin-left:8px;letter-spacing:0}
+.lb-who{font-size:13.5px;margin-top:3px}
+.lb-who b{font-size:16px}
+.lb-team{font-size:12.5px;color:var(--chalk-dim);margin-top:5px;display:flex;flex-wrap:wrap;gap:5px;align-items:center}
+.lb-team .tag{font-size:11px;padding:1px 8px;border:1px solid var(--line2);border-radius:999px;color:var(--chalk)}
+.lb-team .tagx{font-size:11px;padding:1px 8px;border:1px solid rgba(210,96,79,.6);border-radius:999px;color:var(--red)}
+.lb-g{display:grid;grid-template-columns:repeat(auto-fit,minmax(132px,1fr));gap:4px 16px;
+  padding:9px 16px;border-bottom:1px solid var(--line)}
+.lb-g .g{display:flex;align-items:center;gap:7px;font-size:11.5px}
+.lb-g .gl{color:var(--chalk-dim);min-width:46px}
+.lb-g .gb{flex:1;height:5px;background:rgba(255,255,255,.07);border-radius:3px;overflow:hidden;min-width:28px}
+.lb-g .gb i{display:block;height:100%;background:var(--clay)}
+.lb-g .gb i.bad{background:var(--red)}
+.lb-g .gb i.good{background:var(--green)}
+.lb-g .gv{font-family:var(--digit);font-size:15px;color:var(--chalk);min-width:26px;text-align:right}
+.lb-g .gv.big{font-size:21px;color:var(--lamp)}
+.lb-g .face{font-size:15px}
+.lb-season{display:flex;flex-wrap:wrap;gap:4px 18px;align-items:baseline;padding:8px 16px}
+.lb-season .lbl{font-size:11px;color:var(--chalk-dim);letter-spacing:.06em}
+.lb-season .st b{font-family:var(--digit);font-size:20px;color:var(--chalk)}
+.lb-season .st i{font-style:normal;font-size:10.5px;color:var(--chalk-dim);margin-left:3px}
+.lb-recent{padding:0 16px 9px;font-size:11.5px;color:var(--chalk-dim);display:grid;gap:2px}
+
+/* 월간 행동 버튼 — 얻는 것과 잃는 것을 같이 보여준다 */
+.choices.acts .choice{min-height:64px}
+.tradeoff{display:flex;flex-wrap:wrap;gap:3px 12px;margin-top:5px;font-size:11.5px;line-height:1.45}
+.tradeoff .gain{color:var(--green)}
+.tradeoff .cost{color:var(--red)}
+
 /* ── 패널 ── */
 .panel{border:1px solid var(--line);background:rgba(20,38,31,.55);padding:14px}
 .panel+.panel{margin-top:12px}
@@ -214,6 +249,17 @@ tr.mine td{color:var(--lamp);background:rgba(245,196,81,.07)}
   .board{position:sticky;top:0;z-index:30;padding:9px 12px;margin:-10px -11px 12px;
     background:linear-gradient(180deg,#16281f,#101d19);border-left:none;border-right:none;border-top:none}
   .board .who{font-size:17px}
+  /* v3.0 인생 보드 — 상단 고정 / 중앙 스크롤 / 하단 행동 */
+  .lifeboard{margin:-10px -11px 12px;border-left:none;border-right:none;border-top:none}
+  .lb-top{padding:9px 12px 8px}
+  .lb-date{font-size:22px}
+  .lb-who{font-size:12.5px}
+  .lb-g{grid-template-columns:1fr 1fr;gap:3px 12px;padding:7px 12px}
+  .lb-g .gl{min-width:40px}
+  .lb-g .gv{font-size:14px}
+  .lb-season{padding:7px 12px;gap:3px 14px}
+  .lb-season .st b{font-size:17px}
+  .lb-recent{padding:0 12px 8px}
   .scene{padding:18px 15px 16px;min-height:auto}
   .scene h2{font-size:21px}
   .scene .body{font-size:15.5px}
