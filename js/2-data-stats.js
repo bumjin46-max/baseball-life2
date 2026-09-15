@@ -183,3 +183,32 @@ const TRAININGS={
     {id:'rest',name:'휴식', sub:'체력 회복 / 성장 없음', up:{}, fatigue:-34, rest:1}
   ]
 };
+
+/* ==========================================================================
+   [35] DATA v3.0 — 포지션 어휘
+   같은 이벤트라도 투수에게는 "네 투구폼", 타자에게는 "네 스윙"으로 나가야 한다.
+   하드코딩된 야구 용어를 전부 이 테이블로 돌린다.
+   ========================================================================== */
+const POSV={
+  batter:{
+    craft:'스윙',        feel:'타격감',      place:'타석',       gear:'배트',
+    coach:'타격코치',    goal:'홈런왕',      act:'배트를 돌리고', act2:'배트를 든다',
+    job:'타자',          drill:'티배팅',     bodypart:'손목',
+    key:'contact',       key2:'power',       slumpLine:'공이 작아 보인다'
+  },
+  pitcher:{
+    craft:'투구폼',      feel:'공 끝',       place:'마운드',     gear:'글러브',
+    coach:'투수코치',    goal:'다승왕',      act:'섀도 피칭을 하고', act2:'글러브를 낀다',
+    job:'투수',          drill:'불펜 피칭',  bodypart:'어깨',
+    key:'control',       key2:'stuff',       slumpLine:'공이 손에서 늦게 빠진다'
+  },
+  catcher:{
+    craft:'블로킹 자세', feel:'포구감',      place:'홈플레이트', gear:'미트',
+    coach:'배터리코치',  goal:'골든글러브',  act:'미트를 손질하고', act2:'미트를 챙긴다',
+    job:'포수',          drill:'블로킹 드릴',bodypart:'무릎',
+    key:'catching',      key2:'lead',        slumpLine:'사인이 머리에서 엉킨다'
+  }
+};
+const W=p=>POSV[p.pos]||POSV.batter;
+/* 선배/코치 같은 NPC도 포지션을 갖는다 — "타격코치가 된 투수 선배"를 막는다 */
+const POS_LABEL={batter:'타자',pitcher:'투수',catcher:'포수'};

@@ -295,3 +295,24 @@ tr.mine td{color:var(--lamp);background:rgba(245,196,81,.07)}
   .scene,.panel{animation:in .22s ease-out}
   @keyframes in{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:none}}
 }
+
+/* v3.0 — 2군 기록은 톤을 낮춰 1군 기록과 구분한다 */
+.lb-season.farm{border-top:1px dashed var(--line);opacity:.82}
+.lb-season.farm .lbl{color:var(--clay)}
+.lb-season.farm .st b{font-size:17px;color:var(--chalk-dim)}
+table.rec tr.farm td{color:var(--chalk-dim);font-style:italic}
+
+/* v3.0 — 슬럼프 태그는 상태 태그와 같은 톤 */
+.lb-g .gv{white-space:nowrap}
+
+/* v3.0 — "이 인생을 만든 선택들" 연표 */
+.chain{display:grid;gap:5px;font-size:12.5px;position:relative;padding-left:12px}
+.chain::before{content:'';position:absolute;left:2px;top:6px;bottom:10px;width:1px;background:var(--line2)}
+.chain>div{display:flex;gap:10px;align-items:baseline;position:relative}
+.chain>div::before{content:'';position:absolute;left:-13px;top:7px;width:5px;height:5px;
+  border-radius:50%;background:var(--clay)}
+.chain>div b{font-family:var(--digit);font-size:14px;color:var(--clay);min-width:52px;font-weight:400}
+.chain>div span{color:var(--chalk-dim)}
+.chain .last b{color:var(--lamp);font-family:var(--font);font-size:15px}
+.chain .last span{color:var(--lamp);font-weight:800;font-size:14.5px}
+.chain .last::before{background:var(--lamp);width:7px;height:7px;left:-14px}

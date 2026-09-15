@@ -49,13 +49,13 @@ function buildMonth(m){
   case 3:  return ['monthStart','seasonStart','action','rosterSet'];
   case 4:  return ['monthStart','action','games','moment'];
   case 5:  return ['monthStart','action','games','event','levelCheck'];
-  case 6:  return ['monthStart','action','games','moment'];
+  case 6:  return ['monthStart','action','games','moment','levelCheck'];
   case 7:  return ['monthStart','action','games','teamEvent','levelCheck'];
-  case 8:  return ['monthStart','action','games','moment'];
+  case 8:  return ['monthStart','action','games','moment','levelCheck'];
   case 9:  return ['monthStart','action','games','rank'];
   case 10: return ['monthStart','ksMoment','post','action'];
   case 11: return ['monthStart','award','traits','combo'];
-  case 12: return ['monthStart','action','nat','trade','fa','retire','leagueOff','yearEnd'];
+  case 12: return ['monthStart','action','nat','trade','fa','contract','retire','leagueOff','yearEnd'];
   default: return ['monthStart','action'];
   }
 }
@@ -103,7 +103,8 @@ function runPhase(ph){
     }
     if(p.rehabLeft>0){                               // 재활 카운트다운
       p.rehabLeft--;
-      if(p.rehabLeft<=0){p.status='정상';p.monthLog.push('복귀 판정을 받았다.');}
+      if(p.rehabLeft<=0){p.status='정상';p.monthLog.push('복귀 판정을 받았다.');
+        p.lvChangedAt=0;}                              // 복귀 직후엔 보직 재판정을 허용한다
     }
     updateCond(p);
     return 'skip';
@@ -178,6 +179,8 @@ function runPhase(ph){
     const got=awardsPhase(p);
     const agl=agingPhase(p);
     p.nick=nickname(p);
+    if(p.farm&&p.farm.g){p.season.farm={g:p.farm.g,h:p.farm.h,ab:p.farm.ab,hr:p.farm.hr,
+      rbi:p.farm.rbi,ip:p.farm.ip,w:p.farm.w,er:p.farm.er,k:p.farm.k};}
     p.career.seasons.push(JSON.parse(JSON.stringify(p.season)));
     return scene({when:nowLabel(),title:`${p.year} 시즌 결산`,
       html:seasonSummaryHtml(p,got,agl),cta:'계속'});
@@ -207,12 +210,32 @@ function runPhase(ph){
     return scene({when:'국가대표',title:'태극마크',body:'',log:[r],cta:'계속'});
   }
   case 'fa':return faPhase();
+  /* ── 신규: 재계약 / 연간 정산 (요구 20·21) ── */
+  case 'contract':{
+    if(!p.season||p.retired)return 'skip';
+    const r=salaryReview(p);
+    const money=settleYear(p);
+    const arrow=r.diff>0?'▲':r.diff<0?'▼':'—';
+    const cls=r.diff>0?'plus':r.diff<0?'minus':'';
+    return scene({when:nowLabel('재계약'),title:'연봉 협상',
+      html:`<div class="diffbox"><h4>${G.cal.year+1} 계약</h4>
+        <div class="dline ${cls}"><span class="nm">연봉</span>
+          <span class="from">${wonText(r.prev)}</span><span class="dim">→</span>
+          <span class="to">${wonText(r.next)}</span>
+          <span class="delta">${arrow} ${wonText(Math.abs(r.diff))}</span></div>
+        <div class="dline"><span class="nm">시장가치</span><span class="to">${wonText(r.mv)}</span></div>
+        <div class="dline"><span class="nm">계약 기간</span><span class="to">${p.money.years}년</span></div>
+      </div>`,
+      log:money,cta:'계속'});
+  }
   case 'retire':return retirePhase();
   case 'yearEnd':{
     p.age++;
     p.fatigue=clamp(p.fatigue-14,0,100);
     p.stress=clamp((p.stress||20)-6,0,100);
     p.status='정상';p.rehabLeft=0;
+    p.gearYear=0;p.money.trainer=0;                  // 트레이너·장비는 매년 다시 계약한다
+    p.slump=slumpObj();
     updateCond(p);
     return 'skip';                                   // 큐가 비면 advance()가 1월로 넘긴다
   }}
@@ -250,20 +273,43 @@ function setupRival(p){
    확률이 필요한 행동은 v2.1의 outcomes 엔진을 그대로 쓴다.
    ========================================================================== */
 const HOBBIES=[
-  {id:'read', icon:'📚', name:'독서',       eff:{stress:-6},  run:p=>{tend(p,{leadership:2,patience:1});grow(p,{mental:.5});return['조용한 저녁이었다.'];}},
-  {id:'game', icon:'🎮', name:'게임',       eff:{stress:-10}, run:p=>{tend(p,{diligence:-1});return['머리를 비웠다.'];}},
-  {id:'out',  icon:'🍻', name:'동료와 외출', eff:{stress:-8},  run:p=>{rel(p,'team',5);rel(p,'vet',2);tend(p,{social:3});return['늦게까지 이야기했다.'];}},
-  {id:'golf', icon:'🏌', name:'골프',       eff:{stress:-5},  run:p=>{p.fanRating=clamp(p.fanRating+1,0,100);tend(p,{star:2});return['사진이 몇 장 돌았다.'];}},
-  {id:'fish', icon:'🎣', name:'낚시',       eff:{stress:-9},  run:p=>{tend(p,{patience:3});return['아무것도 잡지 못했지만 괜찮았다.'];}},
-  {id:'fan',  icon:'❤️', name:'팬 행사',    eff:{stress:+3},  run:p=>{p.fanRating=clamp(p.fanRating+4,0,100);p.media=clamp((p.media||50)+3,0,100);tend(p,{star:3});return['이름을 불러주는 사람들이 있었다.'];}}
+  {id:'read', icon:'📚', name:'독서',       cost:30,  eff:{stress:-6},  run:p=>{tend(p,{leadership:2,patience:1});grow(p,{mental:.5});return['조용한 저녁이었다.'];}},
+  {id:'game', icon:'🎮', name:'게임',       cost:80,  eff:{stress:-10}, run:p=>{tend(p,{diligence:-1});return['머리를 비웠다.'];}},
+  {id:'out',  icon:'🍻', name:'동료와 외출', cost:250, eff:{stress:-8},  run:p=>{rel(p,'team',5);rel(p,'vet',2);tend(p,{social:3});return['늦게까지 이야기했다. 계산은 선배가 하지 않았다.'];}},
+  {id:'golf', icon:'🏌', name:'골프',       cost:400, eff:{stress:-5},  run:p=>{p.fanRating=clamp(p.fanRating+1,0,100);rel(p,'front',3);tend(p,{star:2});return['사진이 몇 장 돌았다.'];}},
+  {id:'fish', icon:'🎣', name:'낚시',       cost:60,  eff:{stress:-9},  run:p=>{tend(p,{patience:3});return['아무것도 잡지 못했지만 괜찮았다.'];}},
+  {id:'fam',  icon:'🏠', name:'가족과 시간', cost:200, eff:{stress:-12}, run:p=>{tend(p,{patience:2,selfish:-3});flagAt(p,'family');return['오랜만에 집밥을 먹었다.'];}},
+  {id:'fan',  icon:'❤️', name:'팬 행사',    cost:0,   eff:{stress:+3},  run:p=>{p.fanRating=clamp(p.fanRating+4,0,100);p.media=clamp((p.media||50)+3,0,100);tend(p,{star:3});return['이름을 불러주는 사람들이 있었다.'];}}
 ];
 
+/* 관계 8종 (요구 23) — 각 관계가 실제로 다른 것을 준다 */
 const RELATIONS=[
-  {id:'manager',name:'감독',   line:'면담을 요청했다.',     run:p=>{rel(p,'manager',6);tend(p,{social:1});return['짧게, 그러나 분명하게 이야기했다.'];}},
-  {id:'coach',  name:'코치',   line:'기술 상담을 받았다.',  run:p=>{rel(p,'coach',6);grow(p,{mental:.6});return['자기 폼을 처음으로 영상으로 봤다.'];}},
-  {id:'vet',    name:'선배',   line:'선배를 찾아갔다.',     run:p=>{rel(p,'vet',7);tend(p,{patience:2});flagAt(p,'helpedVeteran');return['그는 오래 듣기만 했다.'];}},
-  {id:'rookie', name:'후배',   line:'후배를 챙겼다.',       run:p=>{rel(p,'rookie',7);tend(p,{leadership:3,selfish:-2});flagAt(p,'mentoredRookie');return['후배가 처음으로 먼저 인사했다.'];}},
-  {id:'front',  name:'프런트', line:'구단 사무실에 들렀다.',run:p=>{rel(p,'front',6);return['계약 이야기는 나오지 않았다.'];}}
+  {id:'manager',name:'감독',   line:'면담을 요청한다',      gain:'출전 기회 ↑',
+   run:p=>{rel(p,'manager',6);tend(p,{social:1});
+     return['짧게, 그러나 분명하게 이야기했다.','감독의 신뢰는 라인업으로 돌아온다.'];}},
+  {id:'coach',  name:'코치',   line:'기술 상담을 받는다',   gain:'주 능력 ↑ · 슬럼프 탈출 ↑',
+   run:p=>{rel(p,'coach',6);grow(p,{[W(p).key]:.35,mental:.25});
+     return[`${W(p).coach}와 영상을 돌려봤다.`];}},
+  {id:'vet',    name:'선배',   line:'선배를 찾아간다',      gain:'인내 ↑ · 훗날의 이야기',
+   run:p=>{rel(p,'vet',7);tend(p,{patience:2});flagAt(p,'helpedVeteran');
+     return['그는 오래 듣기만 했다.'];}},
+  {id:'rookie', name:'후배',   line:'후배를 챙긴다',        gain:'리더십 ↑ · 지도자의 길',
+   run:p=>{rel(p,'rookie',7);tend(p,{leadership:3,selfish:-2});flagAt(p,'mentoredRookie');
+     return['후배가 처음으로 먼저 인사했다.'];}},
+  {id:'team',   name:'동료',   line:'라커룸에서 시간을 보낸다', gain:'팀 관계 ↑ · 팀 기여 ↑',
+   run:p=>{rel(p,'team',7);tend(p,{social:3,selfish:-1});p.teamBoost=(p.teamBoost||0)+.4;
+     return['별 이야기는 안 했는데 분위기가 편해졌다.'];}},
+  {id:'front',  name:'프런트', line:'구단 사무실에 들른다', gain:'시장가치 평가 ↑',
+   run:p=>{rel(p,'front',6);
+     return['계약 이야기는 나오지 않았다. 얼굴은 익혔다.'];}},
+  {id:'captain',name:'주장',   line:'주장과 이야기한다',    gain:'리더십 ↑ · 주장 후보',
+   run:p=>{rel(p,'captain',7);tend(p,{leadership:2,loyalty:2});
+     if((p.rel.captain||50)>=78&&p.lv!=='2군'&&p.seasonsPlayed>=3)flag(p,'captainCandidate');
+     return['"너도 언젠가 이 자리에 앉을 거야."'];}},
+  {id:'fan',    name:'팬',     line:'팬들과 만난다',        gain:'팬 인기 ↑ · 언론 관심 ↑',
+   run:p=>{rel(p,'fan',6);p.fanRating=clamp(p.fanRating+3,0,100);
+     p.media=clamp((p.media||50)+2,0,100);tend(p,{star:2});
+     return['사인을 스무 장쯤 했다.'];}}
 ];
 
 /* 행동 정의 — cost/gain 은 버튼에 그대로 노출된다 (요구 5·7) */
@@ -312,24 +358,44 @@ const ACTIONS={
       {p:.10,label:'무리가 탈이 난다',
         res:{text:'무릎이 말을 듣지 않았다.',injRisk:.9,fatigue:12}}]},
 
-  coachTalk:{icon:'🗣',name:'코치와 상담',gain:'슬럼프 탈출 70%',cost:'성장 없음',
-    run:p=>{rel(p,'coach',5);
-      if(R.c(.7)){p.slump=0;return['<em>실마리를 찾았다.</em> 배트가 다시 돌기 시작했다.'];}
-      return['이야기는 길었지만 답은 나오지 않았다.'];}}
+  /* ── 슬럼프 탈출 3종 (요구 22) — 확률과 대가가 서로 다르다 ── */
+  slumpHard:{icon:'🔥',name:'더 강하게 훈련한다',gain:'탈출 60% · 성공 시 능력 +1',cost:'피로 +12 · 실패 시 악화',
+    run:p=>slumpEscape(p,'hard')},
+  slumpRest:{icon:'🛌',name:'며칠 야구를 잊는다',gain:'탈출 45% · 피로 −16 · 스트레스 −8',cost:'성장 없음',
+    run:p=>slumpEscape(p,'rest')},
+  slumpCoach:{icon:'🗣',name:`코치와 상담한다`,gain:'탈출 70% · 코치 관계 +6',cost:'성장 없음',
+    run:p=>slumpEscape(p,'coach')},
+
+  /* ── 돈을 쓰는 행동 (요구 20) ── */
+  trainer:{icon:'💳',name:'개인 트레이너를 고용',gain:'연중 부상 위험 ↓ · 회복 ↑',cost:'연 1,800만원',
+    run:p=>{
+      if(p.money.trainer)return['이미 전담 트레이너가 붙어 있다.'];
+      if(!spend(p,1800,'트레이너'))return['잔고가 부족하다.'];
+      p.money.trainer=1;p.injRisk=(p.injRisk||0)-.15;
+      return['전담 트레이너가 붙었다. 몸 관리가 달라진다.'];}},
+
+  gear:{icon:'🧤',name:'장비를 맞춘다',gain:'주 능력 +0.8 · 컨디션 ↑',cost:'1,200만원',
+    run:p=>{
+      if(!spend(p,1200,'장비'))return['잔고가 부족하다.'];
+      p.gearYear=1;grow(p,{[W(p).key]:.8});p.cond=clamp(p.cond+1,0,4);
+      return[`손에 맞는 ${W(p).gear}는 생각보다 큰 차이를 만든다.`];}}
 };
 
 /* 상태에 따라 가능한 행동이 달라진다 (요구 3) */
 function monthActions(p){
   const m=MON(),list=[];
-  if(p.status==='부상'){
-    return ['rehab','rest','hobby','relation'];
-  }
+  const sl=slumpOf(p);
+  if(p.status==='부상')return ['rehab','rest','hobby','relation'];
   if(p.status==='재활')list.push('rehab');
+  if(sl.active){                                  // 슬럼프면 탈출 선택지가 앞에 온다
+    list.push('slumpCoach','slumpHard','slumpRest');
+  }
   list.push('teamTrain','soloTrain');
   if(m.season&&p.lv!=='2군')list.push('focus');
   if(m.season&&p.lv==='2군')list.push('push');
   list.push('rest','hobby','relation');
-  if(p.slump)list.push('coachTalk');
+  if(!m.season&&!p.money.trainer&&p.money.balance>=1800)list.push('trainer');
+  if(!m.season&&p.money.balance>=1200&&!p.gearYear)list.push('gear');
   return list;
 }
 
@@ -349,55 +415,111 @@ function actionMenu(){
 
 function hobbyMenu(){
   const p=G.p;
-  return scene({when:nowLabel(),title:'무엇을 하며 보낼까',
-    body:`스트레스 ${Math.round(p.stress||20)}`,
-    choices:HOBBIES.map(h=>({t:`${h.icon} ${h.name}`,
-      s:h.eff.stress<0?`스트레스 ${h.eff.stress}`:`스트레스 +${h.eff.stress}`,
-      run:()=>{p.stress=clamp((p.stress||20)+h.eff.stress,0,100);
+  return scene({when:nowLabel(),title:'무엇을 하며 보낼까',month:1,
+    body:`스트레스 ${Math.round(p.stress||20)} · 자산 ${wonText(p.money.balance)}`,
+    choices:HOBBIES.filter(h=>p.money.balance>=h.cost).map(h=>({t:`${h.icon} ${h.name}`,
+      gain:h.eff.stress<0?`스트레스 ${h.eff.stress}`:null,
+      cost:[h.eff.stress>0?`스트레스 +${h.eff.stress}`:null,h.cost?wonText(h.cost):null]
+             .filter(Boolean).join(' · ')||null,
+      run:()=>{if(h.cost)spend(p,h.cost,h.name);
+        p.stress=clamp((p.stress||20)+h.eff.stress,0,100);
         const log=h.run(p);updateCond(p);return log;}}))
-      .concat([{t:'돌아간다',s:'다른 행동을 고른다',next:()=>actionMenu()}])});
+      .concat([{t:'돌아간다',gain:null,cost:'다른 행동을 고른다',next:()=>actionMenu()}])});
 }
 
 function relationMenu(){
   const p=G.p;
-  return scene({when:nowLabel(),title:'누구를 만날까',
+  return scene({when:nowLabel(),title:'누구를 만날까',month:1,
     body:'지금 쌓아두는 관계가 몇 해 뒤에 돌아올 수도 있다.',
-    choices:RELATIONS.map(r=>({t:r.name,s:`${r.line}   /   ${relTier(p.rel[r.id]||50)}`,
+    choices:RELATIONS.map(r=>({t:`${r.name} — ${relTier(p.rel[r.id]||50)}`,
+      gain:r.gain,cost:r.line,
       run:()=>{p.fatigue=clamp(p.fatigue+3,0,100);const log=r.run(p);updateCond(p);return log;}}))
-      .concat([{t:'돌아간다',s:'다른 행동을 고른다',next:()=>actionMenu()}])});
+      .concat([{t:'돌아간다',gain:null,cost:'다른 행동을 고른다',next:()=>actionMenu()}])});
 }
 
 /* ==========================================================================
    [46] ROSTER — 1군/2군 (Phase 1은 연출 골격만, Phase 2에서 실제 경쟁 판정 연결)
    ========================================================================== */
+/* 시즌 중 판정은 최소 2개월 간격 — 매달 오르내리는 요요를 막는다 */
+const LV_COOLDOWN=2;
+
 function rosterScene(opening){
-  const p=G.p,before=p.lv;
-  const now=decideLevel(p);
+  const p=G.p;
+  /* 개막(rosterSet)에서는 newSeason 이 이미 p.lv 을 갱신한 뒤다.
+     p.lvBefore(작년 보직)와 비교해야 개막 승격이 콜업으로 잡힌다. */
+  const before=(opening&&p.lvBefore!==undefined)?p.lvBefore:p.lv;
+  if(p.status==='부상')return 'skip';                       // 부상 중엔 보직을 건드리지 않는다
+  if(!opening){
+    const since=(G.cal.year*12+G.cal.month)-(p.lvChangedAt||0);
+    if(since<LV_COOLDOWN)return 'skip';
+  }
+  const now=opening?p.lv:decideLevel(p);                    // 팀 내 정원 경쟁 판정
   if(now===before&&!opening)return 'skip';
+  const changed=now!==before;
   p.lv=now;
   if(p.season)p.season.lv=now;
+  if(changed)p.lvChangedAt=G.cal.year*12+G.cal.month;
 
+  const depth=rivalAhead(p);
+  const farmLine=farmSummary(p);
+
+  /* 첫 1군 콜업 — 일반 이벤트와 다르게 처리한다 (요구 12) */
   if(before==='2군'&&now!=='2군'&&!p.flags.includes('firstCallUp')){
     flagAt(p,'firstCallUp');
-    p.timeline.push({y:G.cal.year,t:'프로 1군 데뷔'});
-    return scene({when:nowLabel(),title:'전화가 왔다',
+    p.timeline.push({y:G.cal.year,m:G.cal.month,t:'프로 1군 데뷔'});
+    p.stress=clamp((p.stress||20)+8,0,100);
+    return scene({when:nowLabel(),lvWas:before,title:'전화가 왔다',
       body:`"내일 1군에 합류해."\n\n잠시 말이 나오지 않았다.\n\n${p.age}살의 ${MON().mood}.\n당신은 처음으로 프로야구 1군 선수 명단에 이름을 올렸다.`,
+      log:[`${G.cal.year}.${String(G.cal.month).padStart(2,'0')} · 1군 등록 (${now})`]
+        .concat(farmLine?[farmLine]:[]),
       cta:'1군으로 간다'});
   }
-  if(before==='2군'&&now!=='2군')
-    return scene({when:nowLabel(),title:'콜업',body:'다시 1군의 부름을 받았다.',
-      log:[`보직 · ${now}`],cta:'계속'});
-  if(before!=='2군'&&now==='2군'){
-    rel(p,'manager',-3);
-    return scene({when:nowLabel(),title:'강등',
-      body:'감독실에서 짧은 이야기를 들었다.\n\n"내려가서 다시 만들어 와."',
-      log:['2군으로 내려간다.'],cta:'계속'});
+  if(before==='2군'&&now!=='2군'){
+    rel(p,'manager',3);
+    return scene({when:nowLabel(),lvWas:before,title:'콜업',
+      body:`다시 1군의 부름을 받았다.\n\n이번엔 자리를 지킬 수 있을까.`,
+      log:[`보직 · ${now}`].concat(farmLine?[farmLine]:[]),cta:'계속'});
   }
+  if(before!=='2군'&&now==='2군'){
+    rel(p,'manager',-4);
+    p.stress=clamp((p.stress||20)+12,0,100);
+    tend(p,{patience:2});
+    flagAt(p,'demoted');
+    return scene({when:nowLabel(),lvWas:before,title:'강등',
+      body:`감독실에서 짧은 이야기를 들었다.\n\n"내려가서 다시 만들어 와."`,
+      log:['2군으로 내려간다.'].concat(depth?[depth]:[]),cta:'계속'});
+  }
+  if(changed)                                               // 주전↔백업, 선발↔불펜
+    return scene({when:nowLabel(),lvWas:before,title:'보직 변경',
+      body:`라인업이 바뀌었다.`,log:[`${before} → ${now}`].concat(depth?[depth]:[]),cta:'계속'});
   if(opening)
     return scene({when:nowLabel('개막 엔트리'),title:'개막 엔트리가 발표됐다',
-      body:`${TEAM(p.team).name}의 ${G.cal.year} 개막 엔트리.`,
-      log:[`보직 · ${now}`],cta:'시즌으로'});
+      body:`${TEAM(p.team).name}의 ${G.cal.year} 개막 엔트리가 나왔다.`,
+      log:[`보직 · ${now}`].concat(depth?[depth]:[]),cta:'시즌으로'});
   return 'skip';
+}
+
+/* 내 앞을 막고 있는 선수 — 강등이 왜 났는지 보여준다 */
+function rivalAhead(p){
+  if(!L)return null;
+  const same=L.players.filter(a=>isAi(a)&&a.team===p.team&&a.pos===p.pos&&!a.retired&&a.lv==='1군')
+                      .sort((a,b)=>b.ovr-a.ovr);
+  if(!same.length)return null;
+  const me=ovr(p);
+  const ahead=same.filter(a=>a.ovr>me);
+  if(!ahead.length)return `팀 내 ${POS[p.pos].label} 1순위는 나다. (종합 ${me})`;
+  return `내 앞에 ${ahead.length}명 — 선두 ${ahead[0].name} 종합 ${ahead[0].ovr} (나 ${me})`;
+}
+/* 2군 성적 한 줄 */
+function farmSummary(p){
+  const f=p.farm;
+  if(!f||!f.g)return null;
+  if(p.pos==='pitcher'){
+    if(!f.ip)return null;
+    return `2군 성적 — ${f.g}경기 ${f.ip}이닝 ${f.w}승 방어율 ${round(f.er*9/f.ip,2)}`;
+  }
+  if(!f.ab)return null;
+  return `2군 성적 — ${f.g}경기 타율 ${avg3(f.h/f.ab)} ${f.hr}홈런 ${f.rbi}타점`;
 }
 
 /* ==========================================================================
@@ -406,11 +528,8 @@ function rosterScene(opening){
 const REL_TIER=[[90,'각별함'],[75,'존중'],[58,'신뢰'],[40,'중립'],[25,'경계'],[0,'불편함']];
 function relTier(v){v=clamp(v||50,0,100);for(const [t,l] of REL_TIER)if(v>=t)return l;return '불편함';}
 
-/* 장기 플래그 — 언제 세워졌는지를 함께 기록한다 (요구 24) */
-function flagAt(p,f,meta){
-  if(p.flags.includes(f))return;
-  p.flags.push(f);
-  p.relLog=p.relLog||[];
-  p.relLog.push(Object.assign({y:G.cal.year,m:G.cal.month,f},meta||{}));
-}
+/* 장기 플래그 (요구 24) — flag() 와 동일. 기존 호출부 호환용 별칭 */
+function flagAt(p,f,meta){return flag(p,f,meta);}
 function flagYear(p,f){const e=(p.relLog||[]).find(x=>x.f===f);return e?e.y:null;}
+/* 플래그를 세운 지 몇 해가 지났는가 — 회수 이벤트의 조건이 된다 */
+function yearsSince(p,f){const y=flagYear(p,f);return y===null?-1:(G.cal.year-y);}

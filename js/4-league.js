@@ -53,7 +53,8 @@ function genWorld(seed,year){
   seedWorld(seed);AI_ID=1;
   const used=new Set();
   L={seed,year,players:[],retired:[],history:[],rec:{season:{},career:{}},games:[],
-     standings:[],champions:[],lastTrades:[]};
+     standings:[],champions:[],lastTrades:[],
+     retireAges:[]};   // 은퇴 연령 전수 집계 (L.retired 는 상위 선수만 보관하므로 편향된다)
   TEAMS.forEach(t=>{
     const plan=[['batter',8,'1군'],['catcher',2,'1군'],['pitcher',10,'1군'],
                 ['batter',4,'2군'],['catcher',1,'2군'],['pitcher',4,'2군']];
@@ -72,6 +73,56 @@ function genWorld(seed,year){
 }
 const roster=tid=>L.players.filter(a=>a.team===tid&&!a.retired);
 const firstTeam=tid=>roster(tid).filter(a=>a.lv==='1군');
+
+/* ==========================================================================
+   v3.0 — 플레이어를 리그 로스터에 편입한다
+   L.players 안에 플레이어의 "그림자 엔트리"를 둔다. 그러면 assignRoles()가
+   수정 없이 플레이어를 팀 내 정원 경쟁에 포함시킨다.
+   ★ AI 전용 루프(성장·은퇴·FA·트레이드·시상·정원관리)는 반드시 isAi()로 걸러야 한다.
+     안 그러면 플레이어가 두 번 늙거나, 모르는 팀으로 트레이드되거나, 방출된다.
+   ========================================================================== */
+const isAi=a=>!a.isPlayer;
+function syncPlayerEntry(p){
+  if(!L)return null;
+  if(!p||p.retired){L.players=L.players.filter(isAi);return null;}
+  let e=L.players.find(a=>a.isPlayer);
+  if(!e){e={id:'ME',isPlayer:true};L.players.push(e);}
+  e.name=p.name;e.pos=p.pos;e.age=p.age;e.team=p.team;
+  /* 순수 능력치만으로 자리가 정해지지 않는다.
+     2군 성적 · 구단 육성 성향 · 감독 신뢰 · 나이/잠재력 · 지명 순위가 함께 작용한다. */
+  e.ovr=ovr(p)+farmPush(p)+opportunity(p);
+  e.pot=p.pot;e.retired=false;
+  e.lv=p.lv==='2군'?'2군':'1군';
+  e.role=p.lv;
+  return e;
+}
+/* 출전 기회 보정 — 구단 성향이 실제 게임플레이에 영향을 준다 (요구 18)
+   육성 구단은 유망주에게 빨리 기회를 주고, 베테랑 구단은 신인을 잘 안 쓴다. */
+function opportunity(p){
+  const cul=CUL(p.team);
+  let v=0;
+  v+=(cul.youth-3)*1.5;                                // 육성 성향 (1~5)
+  v-=(cul.vet-3)*0.8;                                  // 베테랑 선호면 신인 출전 기회 감소
+  if(p.age<=23)v+=clamp((p.pot-ovr(p))*.16,0,4.6);     // 어리고 잠재력 있으면 경험을 쌓게 한다
+  if(p.age>=32)v-=(p.age-31)*1.1;                      // 나이가 들면 자리가 좁아진다
+  v+=((p.rel.manager||50)-50)*.06;                     // 감독의 신뢰
+  if(p.draftRound<=2)v+=1.6;                           // 상위 지명은 기회를 더 받는다
+  if(p.flags.includes('demoted'))v-=1.0;               // 한 번 내려간 선수는 눈도장이 찍힌다
+  return round(clamp(v,-7,10),1);
+}
+/* 2군에서 잘 치면 1군 경쟁에서 가산점을 받는다 (요구 11) */
+function farmPush(p){
+  const f=p.farm;
+  if(!f||!f.g)return 0;
+  if(p.pos==='pitcher'){
+    if(!f.ip)return 0;
+    const era=f.er*9/f.ip;
+    return clamp(round((4.60-era)*1.6,1),-3,6);
+  }
+  if(!f.ab)return 0;
+  const avg=f.h/f.ab;
+  return clamp(round((avg-.268)*42+f.hr*.22,1),-3,6);
+}
 
 /* ── 보직 배정 / 콜업·강등 ── */
 function assignRoles(){
@@ -99,7 +150,7 @@ function assignRoles(){
   });
 }
 function teamRating(tid,playerWar){
-  const r=firstTeam(tid);
+  const r=firstTeam(tid).filter(isAi);   // 플레이어는 playerWar로 따로 반영 (이중 계산 방지)
   const bats=r.filter(a=>a.pos!=='pitcher').sort((x,y)=>y.ovr-x.ovr).slice(0,9);
   const sp=r.filter(a=>a.pos==='pitcher'&&a.role==='선발').slice(0,5);
   const rp=r.filter(a=>a.pos==='pitcher'&&a.role==='불펜').slice(0,5);
@@ -156,6 +207,7 @@ function aiSeasonAll(){
   const ratings={};
   TEAMS.forEach(t=>ratings[t.id]=teamRating(t.id));
   L.players.forEach(a=>{
+    if(a.isPlayer){a.s=blankLine();return;}   // 플레이어 시즌은 simHalf가 돌린다
     if(a.retired){a.s=blankLine();return;}
     if(a.lv==='2군'){a.s=blankLine();return;}
     if(!a.debut)a.debut=L.year;
@@ -200,7 +252,7 @@ function postseasonRun(){
 }
 /* ── 시상 ── */
 function leagueAwards(playerEntry){
-  const ents=L.players.filter(a=>!a.retired&&a.lv==='1군').map(a=>({a,s:a.s,name:a.name,pos:a.pos,
+  const ents=L.players.filter(a=>isAi(a)&&!a.retired&&a.lv==='1군').map(a=>({a,s:a.s,name:a.name,pos:a.pos,
     team:a.team,rookie:a.debut===L.year,ai:1}));
   if(playerEntry)ents.push(playerEntry);
   const bats=ents.filter(e=>e.pos!=='pitcher'), pits=ents.filter(e=>e.pos==='pitcher');
@@ -303,9 +355,10 @@ function aiOffseason(){
   const used=new Set(L.players.map(a=>a.name));
   const notes=[];
   // 은퇴
-  L.players.filter(a=>!a.retired).forEach(a=>{
+  L.players.filter(a=>isAi(a)&&!a.retired).forEach(a=>{
     if(aiRetire(a)){
       a.retired=true;a.retireYear=L.year;
+      (L.retireAges=L.retireAges||[]).push(a.age);   // 전수 집계
       if(a.c.war>=20||a.flagRival){
         L.retired.push(a);
         if(a.c.war>=25)notes.push(`${a.name} 은퇴 (통산 WAR ${a.c.war})`);
@@ -314,9 +367,9 @@ function aiOffseason(){
   });
   L.players=L.players.filter(a=>!a.retired);
   // 성장/노쇠
-  L.players.forEach(aiDevelop);
+  L.players.filter(isAi).forEach(aiDevelop);   // 플레이어는 yearEnd에서 따로 나이를 먹는다
   // FA 이동
-  const fas=L.players.filter(a=>a.age>=28&&a.ovr>=62&&R.c(.14));
+  const fas=L.players.filter(a=>isAi(a)&&a.age>=28&&a.ovr>=62&&R.c(.14));
   fas.forEach(a=>{
     const cands=TEAMS.filter(t=>t.id!==a.team).sort((x,y)=>(y.money+CUL(y.id).fa)-(x.money+CUL(x.id).fa));
     const to=R.c(.6)?cands[R.i(0,2)]:R.pick(cands);
@@ -328,7 +381,8 @@ function aiOffseason(){
   L.lastTrades=[];
   for(let i=0;i<R.i(2,4);i++){
     const [ta,tb]=R.shuffle(TEAMS).slice(0,2);
-    const A=roster(ta.id).filter(a=>a.lv==='1군'),B=roster(tb.id).filter(a=>a.lv==='1군');
+    const A=roster(ta.id).filter(a=>isAi(a)&&a.lv==='1군'),
+          B=roster(tb.id).filter(a=>isAi(a)&&a.lv==='1군');
     if(A.length<12||B.length<12)continue;
     const needYouth=CUL(ta.id).youth>=4;
     const a1=R.pick(needYouth?A.filter(x=>x.age>=30):A.filter(x=>x.age<=25))||R.pick(A);
@@ -346,12 +400,12 @@ function aiOffseason(){
   L.players.push(...rk);
   // 정원 관리 — 넘치면 하위 선수 방출
   TEAMS.forEach(t=>{
-    const r=roster(t.id).sort((a,b)=>(b.ovr+b.pot*.3-b.age)-(a.ovr+a.pot*.3-a.age));
-    r.slice(30).forEach(a=>{a.retired=true;a.retireYear=L.year;});
+    const r=roster(t.id).filter(isAi).sort((a,b)=>(b.ovr+b.pot*.3-b.age)-(a.ovr+a.pot*.3-a.age));
+    r.slice(30).forEach(a=>{a.retired=true;a.retireYear=L.year;});   // 플레이어는 방출되지 않는다
   });
   L.players=L.players.filter(a=>!a.retired);
   L.retired=L.retired.filter(a=>a.c.war>=20||a.flagRival).slice(-90);
-  L.players.forEach(a=>{if(!a.flagRival&&a.lines.length>18)a.lines=a.lines.slice(-18);});
+  L.players.forEach(a=>{if(isAi(a)&&!a.flagRival&&a.lines.length>18)a.lines=a.lines.slice(-18);});
   const star=rk.sort((a,b)=>b.pot-a.pot)[0];
   if(star&&star.pot>=88)notes.push(`${L.year+1} 신인 — ${star.name} (${TEAM(star.team).short}), 특급 유망주로 평가받는다`);
   SRND=Math.random;

@@ -22,9 +22,9 @@ function createPlayer(name,pos){
     traits:[],traitLog:[],
     tend:{diligence:R.i(40,60),competitive:R.i(40,60),leadership:R.i(30,55),selfish:R.i(30,55),
           loyalty:R.i(45,65),star:R.i(30,55),patience:R.i(40,60),aggression:R.i(40,60),social:R.i(40,60)},
-    rel:{manager:50,vet:45,team:50,coach:50,rookie:50,front:50,captain:50},
+    rel:{manager:50,vet:45,team:50,coach:50,rookie:50,front:50,captain:50,fan:50},
     media:50,nick:'신예',choiceLog:[],gameLog:[],
-    flags:[],vet:mkName(),
+    flags:[],vet:mkName(),vetPos:pos,
     rival:mkRival(pos),
     season:null,career:{seasons:[]},
     tot:{g:0,pa:0,h:0,hr:0,rbi:0,sb:0,bb:0,so:0,ab:0,war:0,ip:0,w:0,l:0,sv:0,k:0,er:0},
@@ -40,8 +40,12 @@ function createPlayer(name,pos){
     rehabLeft:0,             // 남은 재활 개월
     stress:20,               // 0~100. 높으면 컨디션·성장이 눌린다
     monthLog:[],             // 이번 달에 일어난 일 (메인 화면 "최근")
-    relLog:[]                // 장기 플래그가 언제 세워졌는지 (요구 24)
+    relLog:[],               // 장기 플래그가 언제 세워졌는지 (요구 24)
+    money:Object.assign({},MONEY0),   // 돈 · 연봉 · 시장가치 (요구 20·21)
+    slump:{active:false,since:null,depth:0,months:0}   // 슬럼프는 객체로 승격 (요구 22)
   };
+  p.money.signBonus=[0,25000,12000,6000,3000,1500,800][Math.min(rnd,6)]||800;
+  p.money.balance+=p.money.signBonus;
   p.timeline.push({y:2026,t:`${TEAM(team.id).name} ${rnd}라운드 지명`});
   return p;
 }
@@ -73,7 +77,13 @@ function ab(p,key){ // 경기용 실효 능력치
 /* ── 성향/관계/플래그/성장 ── */
 function tend(p,o){for(const k in o)p.tend[k]=clamp((p.tend[k]||50)+o[k],0,100);}
 function rel(p,k,v){p.rel[k]=clamp((p.rel[k]||50)+v,0,100);}
-function flag(p,f){if(!p.flags.includes(f))p.flags.push(f);}
+/* v3.0 — 모든 플래그가 "언제 세워졌는지"를 남긴다. flagYear(p,f)로 읽는다 (요구 24) */
+function flag(p,f,meta){
+  if(p.flags.includes(f))return;
+  p.flags.push(f);
+  p.relLog=p.relLog||[];
+  p.relLog.push(Object.assign({y:(G.cal?G.cal.year:p.year),m:(G.cal?G.cal.month:1),f},meta||{}));
+}
 function grow(p,o){
   for(const k in o){ if(p.st[k]===undefined)continue;
     p.st[k]=clamp(round(p.st[k]+o[k],1),1,100);}
@@ -92,7 +102,7 @@ function potRoom(p,k){
    v3.0: v2.1은 훈련 기회가 연 2회였는데 월간 시스템에서는 연 최대 9회다.
    회당 성장을 그대로 두면 커리어 WAR 중앙값이 21 → 29로 튄다(실측).
    TRAIN_SCALE로 회당 성장을 낮춰 연간 총 성장량을 v2.1 수준에 맞춘다. */
-const TRAIN_SCALE=.52;
+const TRAIN_SCALE=.53;
 function doTraining(p,t,mult0,fatMul){
   mult0=mult0||1;fatMul=fatMul===undefined?1:fatMul;
   const log=[];
@@ -140,7 +150,20 @@ function updateCond(p){
 /* ==========================================================================
    [10] ENGINE — 출전 등급 / 시즌 시뮬레이션
    ========================================================================== */
+/* v3.0 — 보직은 절대 기준이 아니라 팀 내 정원 경쟁으로 결정된다 (요구 11)
+   플레이어의 그림자 엔트리를 L.players에 넣고 기존 assignRoles()를 그대로 돌리면,
+   우리 팀에 나보다 나은 같은 포지션 선수가 정원만큼 있으면 나는 2군으로 내려간다. */
 function decideLevel(p){
+  if(!L)return decideLevelFallback(p);
+  const e=syncPlayerEntry(p);
+  if(!e)return decideLevelFallback(p);
+  assignRoles();
+  const me=L.players.find(a=>a.isPlayer);
+  if(!me)return decideLevelFallback(p);
+  return me.lv==='2군'?'2군':(me.role||decideLevelFallback(p));
+}
+/* 리그가 아직 없을 때만 쓰는 예전 절대 기준 */
+function decideLevelFallback(p){
   const o=ovr(p);
   if(p.pos==='pitcher'){
     if(o>=62)return '선발';
@@ -151,11 +174,15 @@ function decideLevel(p){
   if(o>=52)return '백업';
   return p.age<=23?'2군':'백업';
 }
+/* 2군 성적은 1군 기록과 분리해 따로 쌓는다 (통산 기록은 1군만) */
+function blankFarm(){return{g:0,pa:0,ab:0,h:0,hr:0,rbi:0,r:0,bb:0,so:0,sb:0,d2:0,
+  ip:0,w:0,l:0,sv:0,k:0,er:0,months:0};}
 function newSeason(p){
-  p.lv=decideLevel(p);
-  p.inPost=false;p.missGames=0;p.injRisk=0;p.clutchBonus=0;p.slump=p.slump||0;
+  p.inPost=false;p.missGames=0;p.injRisk=0;p.clutchBonus=0;slumpOf(p);
   if(L)L.year=p.year;
-  if(L)assignRoles();
+  p.farm=blankFarm();                 // 2군 기록은 매 시즌 초기화
+  p.lvBefore=p.lv;                    // rosterSet 이 "직전 보직"을 알아야 콜업을 감지한다
+  p.lv=decideLevel(p);                // ← 안에서 syncPlayerEntry + assignRoles 를 돈다
   const teamStr=(L?teamRating(p.team):62)+R.f(-1.5,1.5)+(p.teamBoost||0)*.6+tEff(p,'teamB')*.5;
   if(p.lv!=='2군'&&!p.debutYear){p.debutYear=p.year;p.timeline.push({y:p.year,t:'1군 데뷔'});}
   p.season={year:p.year,age:p.age,team:p.team,lv:p.lv,
@@ -167,32 +194,40 @@ function condMod(p){return COND_MOD[p.cond];}
 
 function simHalf(p,half,bonus,frac,seg){
   frac=frac||.5;
-  const s=p.season,log=[];
+  /* v3.0 — 2군 경기는 p.farm 에 따로 쌓는다. 통산 기록(p.tot)에는 들어가지 않는다.
+     S = 시즌 메타(팀 전력 등), s = 이번 달 기록을 누적할 대상 */
+  const S=p.season, log=[];
+  const farm = p.lv==='2군';
+  if(farm&&!p.farm)p.farm=blankFarm();
+  const s = farm ? p.farm : p.season;
+  if(farm)s.months++;
   const full = p.lv==='주전'||p.lv==='선발' ? 1 : (p.lv==='백업'||p.lv==='불펜' ? .62 : .24);
   const cm=1+condMod(p), clutch=(tEff(p,'clutch')+p.clutchBonus+bonus)*.4;
   const opp=R.f(-2,2);
+  const ip0=s.ip, er0=s.er, ab0=s.ab, h0=s.h;      // 이 달치만 떼어내기 위한 스냅샷
   if(p.pos==='pitcher'){
     const starts=Math.max(1,Math.round((p.lv==='선발'?30:p.lv==='불펜'?52:12)*frac));
     const perOut=p.lv==='선발'?(4.3+ab(p,'stamina')*.028):(p.lv==='불펜'?1.5:3.4);
     let ip=round(starts*perOut*(1+tEff(p,'ip'))*cm,1);
     ip=round(ip*(1-clamp((p.missGames||0)/144,0,.9)),1);
     const rate=ab(p,'stuff')*.34+ab(p,'control')*.30+ab(p,'velo')*.16+ab(p,'breaking')*.20;
-    let era=9.9-rate*.078-tEff(p,'era')-clutch*.02+R.norm(0,.55)+opp*.06-(ab(p,'crisis')-50)*.006;
+    let era=9.9-rate*.078-tEff(p,'era')-clutch*.02+R.norm(0,.55)+opp*.06-(ab(p,'crisis')-50)*.006
+            +slumpPenalty(p)*.34;
     era=clamp(round(era*(1-condMod(p)*.6),2),1.30,9.5);
     const k9=clamp((2.5+(ab(p,'velo')-45)*.085+(ab(p,'stuff')-45)*.06+ab(p,'breaking')*.018)*(1+tEff(p,'k9')),3,15);
     const dec=Math.round(starts*(p.lv==='선발'?.68:.26));
-    const wr=clamp(.44+(4.70-era)*.075+(s.teamStr-62)*.006+tEff(p,'win')*.4,.18,.80);
+    const wr=clamp(.44+(4.70-era)*.075+(S.teamStr-62)*.006+tEff(p,'win')*.4,.18,.80);
     const w=Math.round(dec*wr), l=Math.max(0,dec-w);
     const sv=p.lv==='불펜'?Math.round(starts*R.f(.1,.45)):0;
     s.ip=round(s.ip+ip,1); s.w+=w; s.l+=l; s.sv+=sv;
     s.k+=Math.round(ip/9*k9); s.er+=Math.round(ip/9*era); s.g+=starts;
-    log.push(`${half} ${starts}경기 ${ip}이닝  ${w}승 ${l}패  평균자책 ${round(era,2)}  탈삼진 ${Math.round(ip/9*k9)}`);
+    log.push(`${farm?'[2군] ':''}${half} ${starts}경기 ${ip}이닝  ${w}승 ${l}패  평균자책 ${round(era,2)}  탈삼진 ${Math.round(ip/9*k9)}`);
   }else{
     const catcherF=p.pos==='catcher'?.88:1;
     let gm=Math.round((p.lv==='주전'?144:p.lv==='백업'?88:32)*frac*catcherF);
     gm=Math.max(2,gm-Math.round((p.missGames||0)*frac*2));
     const pa=Math.round(gm*(p.lv==='주전'?4.3:3.6));
-    const C=ab(p,'contact')-(p.slump?5:0),P=ab(p,'power'),E=ab(p,'eye');
+    const C=ab(p,'contact')-slumpPenalty(p)*3.2,P=ab(p,'power'),E=ab(p,'eye');
     let avg=.140+C*.0019+E*.0002+condMod(p)*.12+clutch*.0012+R.norm(0,.021)-opp*.002;
     avg=clamp(avg,.130,.400);
     const bbR=clamp((E/100)*.135*(1+tEff(p,'bb')),.02,.22);
@@ -204,11 +239,11 @@ function simHalf(p,half,bonus,frac,seg){
     const d2=Math.round(h*(.15+P*.0009));
     const att=Math.round(Math.pow(ab(p,'run')/100,2)*gm*.6);
     const sb=Math.round(att*(.58+ab(p,'speed')*.003));
-    const rbi=Math.round(hr*2.15+h*.33+(s.teamStr-62)*.35+clutch*.5);
+    const rbi=Math.round(hr*2.15+h*.33+(S.teamStr-62)*.35+clutch*.5);
     const r=Math.round(h*.42+bb*.24+hr*.4);
     s.g+=gm;s.pa+=pa;s.ab+=abn;s.h+=Math.min(h,abn);s.hr+=hr;s.d2+=d2;
     s.bb+=bb;s.so+=so;s.sb+=Math.max(0,sb);s.rbi+=rbi;s.r+=r;
-    log.push(`${half} ${gm}경기  타율 ${avg3(avg)}  ${h}안타 ${hr}홈런 ${rbi}타점 ${sb}도루`);
+    log.push(`${farm?'[2군] ':''}${half} ${gm}경기  타율 ${avg3(avg)}  ${h}안타 ${hr}홈런 ${rbi}타점 ${sb}도루`);
   }
   const hi=segmentHighlight(p,seg||{m:[4,5]});
   if(hi)log.push(hi);
@@ -218,12 +253,17 @@ function simHalf(p,half,bonus,frac,seg){
      (이 스케일링을 빼면 회복이 2배가 되어 피로도가 쌓이지 않는다) */
   p.fatigue=clamp(p.fatigue+(42*full*frac*2)*(1+tEff(p,'staminaCost'))
                   -ab(p,'stamina')*.135*(frac*2),0,100);
-  p.gamesTotal+=s.g;
+  if(!farm)p.gamesTotal+=s.g;
   expGrowth(p,full*frac*2);
   updateCond(p);
   const inj=rollInjury(p,full*frac*2);
   if(inj)log.push(inj);
-  if(p.slump)p.slump=0;
+  /* v3.0 — 슬럼프는 그 달 성적으로 판정한다 (한 달 만에 자동 해제되지 않는다) */
+  const before0=p.pos==='pitcher'
+    ? {ip:round(s.ip-ip0,1),er:s.er-er0}
+    : {ab:s.ab-ab0,h:s.h-h0};
+  const sm=slumpCheck(p,before0);
+  if(sm)log.push(sm);
   return log;
 }
 /* 구간별 하이라이트 경기 — 역사적 경기는 리그 기록에도 남는다 */
@@ -266,7 +306,7 @@ function expGrowth(p,full){ // 경기 경험 — 잠재력을 향해 서서히 �
   });
 }
 function rollInjury(p,full){
-  let c=.055*full*(1+(p.fatigue-40)/110)*(1+tEff(p,'injury'))*(1+(p.injRisk||0));
+  let c=.066*full*(1+(p.fatigue-40)/110)*(1+tEff(p,'injury'))*(1+(p.injRisk||0));
   c*= p.age>=33?1.5:p.age>=30?1.2:1;
   c*= 1-clamp((p.st.stamina-50)/220,-.2,.25);
   if(!R.c(clamp(c,.01,.6)))return null;
@@ -386,7 +426,7 @@ function postseason(p){
   if(!p.inPost)return [];
   const res=postseasonRun();
   L.champions.push({y:L.year,team:res.champ});
-  firstTeam(res.champ).forEach(a=>a.aw.champ++);
+  firstTeam(res.champ).filter(isAi).forEach(a=>a.aw.champ++);   // 플레이어 우승은 아래에서 따로 센다
   const big=1+tEff(p,'big');
   const perf=clamp((warNow(p)/6)*big*R.f(.4,1.7)+(p.cond-2)*.08+(p.clutchBonus||0)*.05,0,2.2);
   const games=R.i(4,13);
@@ -489,6 +529,11 @@ function retireCheck(p){
   if(p.age>=36&&o<58)return true;
   if(p.age>=34&&o<52)return true;
   if(p.age>=31&&p.season.war<0.2&&p.injuries.length>=3)return true;
+  /* v3.0 — 1군에 한 번도 자리잡지 못한 채 나이만 먹으면 구단이 먼저 정리한다
+     (요구 35 "유망주 실패"). 단, 1군 기록이 쌓인 선수에게는 적용하지 않는다. */
+  p.farmYears=(p.career.seasons||[]).filter(s=>s.lv==='2군').length;
+  if(p.lv==='2군'&&p.age>=28&&p.farmYears>=6&&p.tot.war<3)return true;
+  if(p.lv==='2군'&&p.age>=31&&p.tot.war<8)return true;
   return false;
 }
 function decideEnding(p){
@@ -542,6 +587,8 @@ function rollOutcome(p,c){
 function applyResult(p,res){
   const log=[];
   if(res.st)grow(p,res.st);
+  /* stKey:[주능력, 부능력] — 포지션에 맞는 능력치에 적용한다 (투수에게 컨택을 주지 않는다) */
+  if(res.stKey)grow(p,{[W(p).key]:res.stKey[0],[W(p).key2]:res.stKey[1]||0});
   if(res.tend)tend(p,res.tend);
   if(res.rel)for(const k in res.rel)rel(p,k,res.rel[k]);
   if(res.flag)flag(p,res.flag);
@@ -767,4 +814,201 @@ function newsHtml(list){
   return list.map(x=>`<div class="newscard ${x.me?'me':''}">
     <div class="nh">★ ${esc(x.tag)} NEWS ${x.y||''}</div>
     <div class="nb">${esc(x.text)}</div></div>`).join('');
+}
+
+/* ==========================================================================
+   [36] ENGINE v3.0 — 돈 / 연봉 / 시장가치  (요구 20·21)
+   단위: 만원. 화면에는 억/만원으로 환산해 보여준다.
+   경제가 게임의 주제가 되지 않도록 단순하게 유지한다.
+   ========================================================================== */
+const MONEY0={balance:2000,salary:3000,signBonus:0,years:3,value:3000,earned:0,spent:0};
+
+function wonText(v){
+  v=Math.round(v||0);
+  if(Math.abs(v)>=10000){
+    const eok=v/10000;
+    return (Math.abs(eok)>=10?Math.round(eok):round(eok,1))+'억';
+  }
+  return v.toLocaleString('ko-KR')+'만원';
+}
+/* 시장가치 — 성적·나이·잠재력·인기가 값을 만든다 */
+function marketValue(p){
+  const o=ovr(p), war=p.tot.war, best=p.bestWar||0;
+  /* 목표 곡선 — 19세 유망주 3천만 / 23세 주전 1.2억 / 27세 스타 7억 / 30세 FA 최대어 15억 */
+  let v = 1200
+    + Math.pow(Math.max(0,o-44),2.5)*1.7        // 능력치는 가파르게 (상위 구간에서 급등)
+    + war*360                                    // 통산 실적
+    + best*best*400                              // 전성기 임팩트는 비선형
+    + p.fanRating*26 + p.fame*34
+    + p.awards.mvp*22000 + p.awards.allstar*2600 + p.awards.gg*1800
+    + p.awards.champ*2200 + p.nat.gold*3000;
+  v*=1+clamp(((p.rel.front||50)-50)*.0035,-.12,.12);  // 프런트와의 관계가 평가에 묻어난다
+  if(p.age>=31)v*=clamp(1-(p.age-30)*.11,.25,1);   // 나이 할인
+  if(p.age<=22)v*=.55+ (p.pot-o)*.012;             // 유망주 프리미엄은 제한적
+  if(p.lv==='2군')v*=.35;
+  if(p.injuries.length>=4)v*=.85;
+  return Math.max(2700,Math.round(v/100)*100);
+}
+/* 매년 재계약 — FA 전에는 구단이 값을 매긴다 */
+function salaryReview(p){
+  const m=p.money, mv=marketValue(p);
+  m.value=mv;
+  const prev=m.salary;
+  let next;
+  if(m.years>1){                                  // 계약 기간 중 — 소폭만 오른다
+    m.years--;
+    next=Math.round(prev*clamp(1+(p.season.war-1.5)*.07,.95,1.35));
+  }else{
+    next=Math.round(mv*(p.seasonsPlayed>=8?1:.55));   // FA 자격 전엔 구단이 유리하다
+    next=clamp(next,Math.round(prev*.72),Math.round(prev*2.6));
+    m.years=p.seasonsPlayed>=6?R.i(1,3):1;
+  }
+  next=Math.max(3000,next);
+  m.salary=next;
+  return {prev,next,mv,diff:next-prev};
+}
+/* 한 해 수입/지출 정산 */
+function settleYear(p){
+  const m=p.money, s=p.season, log=[];
+  const win=Math.round((s.war>0?s.war:0)*380);                 // 승리수당
+  const ad=Math.round(p.fanRating*p.fame*0.9);                 // 광고
+  const prize=(p.awards.champ&&p.year===(p.lastChampYear||-1))?3000:0;
+  const income=m.salary+win+ad+prize;
+  const living=Math.round(600+m.salary*.13);                   // 생활비 (연봉에 비례)
+  const gear=Math.round(120+ovr(p)*4);                         // 장비 유지비
+  const trainer=p.money.trainer?1800:0;                        // 개인 트레이너
+  const rehab=p.injuries.filter(x=>x.y===p.year).length*500;   // 재활비
+  let outgo=living+gear+trainer+rehab;
+  if(m.balance+income-outgo<0){                                // 빚은 지지 않는다 — 허리띠를 조른다
+    outgo=Math.max(0,m.balance+income);
+    log.push('올해는 씀씀이를 줄여야 했다.');
+  }
+  m.balance=Math.max(0,m.balance+income-outgo);
+  m.earned+=income;m.spent+=outgo;
+  log.push(`연봉 ${wonText(m.salary)}  승리수당 ${wonText(win)}  광고 ${wonText(ad)}${prize?`  우승 보너스 ${wonText(prize)}`:''}`);
+  log.push(`지출 ${wonText(outgo)} (생활 ${wonText(living)} · 장비 ${wonText(gear)}${trainer?` · 트레이너 ${wonText(trainer)}`:''}${rehab?` · 재활 ${wonText(rehab)}`:''})`);
+  log.push(`자산 <em>${wonText(m.balance)}</em>`);
+  return log;
+}
+/* 돈을 쓰는 행동의 공통 처리 — 잔고가 부족하면 못 한다 */
+function spend(p,amount,label){
+  const m=p.money;
+  if(m.balance<amount)return false;
+  m.balance-=amount;m.spent+=amount;
+  return true;
+}
+
+/* ==========================================================================
+   [37] ENGINE v3.0 — 슬럼프  (요구 22)
+   v2.1의 p.slump 는 simHalf 한 번마다 즉시 풀리는 0/1 플래그였다.
+   월간 시스템에서는 "몇 달째 답이 없는" 상태가 되어야 한다.
+   ========================================================================== */
+function slumpObj(){return{active:false,since:null,depth:0,months:0};}
+function slumpOf(p){
+  if(!p.slump||typeof p.slump!=='object')p.slump=slumpObj();
+  return p.slump;
+}
+/* 그 달의 성적을 보고 슬럼프 진입/심화/탈출을 판정한다 */
+function slumpCheck(p,monthLine){
+  const sl=slumpOf(p);
+  let bad=false;
+  /* 한 달 표본은 작다. 임계를 엄하게 잡지 않으면 매달 슬럼프에 걸린다 (실측: 커리어당 5.9회) */
+  if(p.pos==='pitcher'){
+    if(monthLine.ip>=10)bad=(monthLine.er*9/monthLine.ip)>=5.9;
+  }else if(monthLine.ab>=30){
+    bad=(monthLine.h/monthLine.ab)<=.205;
+  }
+  const mentalGuard=clamp((ab(p,'mental')-50)*.004,-.08,.10);
+  if(!sl.active){
+    if(bad&&R.c(clamp(.44-mentalGuard+(p.stress||0)*.002,.12,.70))){
+      sl.active=true;sl.since=`${G.cal.year}.${G.cal.month}`;sl.depth=1;sl.months=1;
+      p.stress=clamp((p.stress||20)+12,0,100);
+      return `<em>슬럼프</em> — ${W(p).slumpLine}.`;
+    }
+    return null;
+  }
+  sl.months++;
+  if(bad&&sl.months<=4){sl.depth=Math.min(3,sl.depth+1);p.stress=clamp((p.stress||20)+6,0,100);
+    return `슬럼프가 길어진다. (${sl.months}개월째)`;}
+  if(R.c(.58+mentalGuard+(sl.months>=4?.25:0))){  // 자연 탈출 (길어질수록 잘 풀린다)
+    const mo=sl.months;
+    p.slump=slumpObj();
+    p.stress=clamp((p.stress||20)-10,0,100);
+    return `<em>슬럼프 탈출</em> — ${mo}개월 만이다.`;
+  }
+  return `아직 감이 돌아오지 않는다. (${sl.months}개월째)`;
+}
+function slumpPenalty(p){
+  const sl=slumpOf(p);
+  return sl.active?sl.depth:0;                    // 1~3
+}
+function slumpEscape(p,kind){
+  const sl=slumpOf(p);
+  if(!sl.active)return ['이미 감은 돌아와 있었다.'];
+  let pr=0,log=[];
+  if(kind==='hard'){ pr=.60; p.fatigue=clamp(p.fatigue+12,0,100); tend(p,{diligence:5}); }
+  if(kind==='rest'){ pr=.45; p.fatigue=clamp(p.fatigue-16,0,100); p.stress=clamp((p.stress||20)-8,0,100); }
+  if(kind==='coach'){ pr=.70; rel(p,'coach',6); tend(p,{social:3}); }
+  pr+=clamp((ab(p,'mental')-50)*.004,-.06,.08);
+  if(R.c(pr)){
+    const mo=sl.months;p.slump=slumpObj();
+    p.stress=clamp((p.stress||20)-12,0,100);
+    if(kind==='hard'){grow(p,{[W(p).key]:1.2});log.push('몸이 먼저 기억해냈다.');}
+    if(kind==='coach')log.push(`${W(p).coach}가 영상 하나를 짚어줬다.`);
+    log.unshift(`<em>슬럼프 탈출</em> — ${mo}개월 만이다.`);
+  }else{
+    sl.depth=Math.min(3,sl.depth+1);
+    p.stress=clamp((p.stress||20)+5,0,100);
+    log.push('이번에도 답은 나오지 않았다.');
+    if(kind==='hard'){p.fatigue=clamp(p.fatigue+6,0,100);log.push('피로만 쌓였다.');}
+  }
+  updateCond(p);
+  return log;
+}
+
+/* ==========================================================================
+   [39] v3.0 — "이 인생을 만든 선택들"  (요구 24·27·39)
+   relLog 에 쌓인 장기 플래그를 연·월 순으로 풀어, 은퇴 화면에서
+   "2026년의 그 선택이 여기까지 왔구나"를 눈으로 보게 한다.
+   ========================================================================== */
+const FLAG_LABEL={
+  firstCallUp:'처음 1군의 부름을 받았다',
+  demoted:'2군으로 내려갔다',
+  helpedVeteran:'부진한 선배 곁에 남았다',
+  mentoredRookie:'후배를 챙기기 시작했다',
+  captainCandidate:'주장 후보로 거론됐다',
+  captain:'주장 완장을 받았다',
+  playedHurt:'아픈 몸으로 그라운드에 섰다',
+  ironWill:'수술 대신 출전을 택했다',
+  injuryHistory:'큰 부상을 겪었다',
+  facedBooing:'야유 앞에서 모자를 벗었다',
+  wonThemBack:'야유를 응원가로 바꿨다',
+  refusedTrade:'트레이드를 거절했다',
+  noRegret:'그 선택을 후회하지 않기로 했다',
+  ifOnly:'가지 않은 길을 곱씹었다',
+  managerConflict:'감독에게 등을 돌렸다',
+  madeAmends:'먼저 손을 내밀었다',
+  troubleMaker:'라커룸에 말이 돌았다',
+  changedMan:'평판을 바꾸기로 했다',
+  franchiseStar:'한 팀에 남기로 했다',
+  wantsNumberRetired:'비어 있는 담장을 올려다봤다',
+  numberPromised:'영구결번을 약속받았다',
+  tookTheBall:'아무도 안 들 때 손을 들었다',
+  aceBattery:'에이스의 공을 받기 시작했다',
+  lastBattery:'에이스의 마지막 공을 받았다',
+  spokeUp:'구단에 쓴소리를 했다',
+  family:'가족과 보내는 시간을 만들었다',
+  playingForSomeone:'누군가를 위해 뛰기 시작했다',
+  mediaConflict:'언론과 부딪쳤다',
+  wantOut:'다른 유니폼을 상상했다',
+  nationalTeam:'태극마크를 달았다',
+  teamFace:'팀의 얼굴이 됐다',
+  bigBomb:'큰 경기의 거포가 됐다',
+  debut:'첫 경기에 섰다'
+};
+function lifeChain(p){
+  return (p.relLog||[])
+    .filter(e=>FLAG_LABEL[e.f])
+    .sort((a,b)=>(a.y-b.y)||((a.m||0)-(b.m||0)))
+    .map(e=>({y:e.y,m:e.m,t:FLAG_LABEL[e.f]}));
 }
