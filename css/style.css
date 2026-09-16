@@ -446,3 +446,10 @@ table.rec tr.farm td{color:var(--chalk-dim);font-style:italic}
 .race .rb i{display:block;height:100%;background:var(--lamp)}
 .race .rb.alt i{background:var(--red)}
 .race b{font-family:var(--digit);font-size:15px;min-width:26px;text-align:right}
+
+/* ── 빌드 표시 (타이틀 하단) ───────────────────────────────── */
+.buildbar{margin-top:18px;display:flex;align-items:center;justify-content:center;
+  gap:8px;font-size:11px;letter-spacing:.02em;flex-wrap:wrap}
+.buildbar a{color:#7fbfa0;text-decoration:underline;text-underline-offset:3px;cursor:pointer}
+.buildtag{background:#1c7a4a;color:#eafff4;border-radius:4px;padding:2px 7px;
+  font-weight:700;letter-spacing:.04em}

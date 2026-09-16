@@ -302,6 +302,7 @@ try{
 }catch(e){}
 
 (async function boot(){
+  if(!bootCheck())return;
   G.hof=(await Store.get('hof_v1'))||[];
   G.compact=!!(await Store.get('compact_v1'));
   try{await Store.del('save_v1');}catch(e){}      // v2.1 세이브 폐기
@@ -459,7 +460,38 @@ function viewTitle(){
       <button onclick="go('hof')">명예의 전당</button>
     </div>
     <p class="sm dim" style="margin-top:26px">정답 루트는 없습니다. 모든 선택에는 대가가 있습니다.</p>
+    <div class="buildbar">
+      <span class="buildtag">${BUILD}</span>
+      <span class="dim">${BUILD_DATE}</span>
+      <span class="dim">·</span>
+      <a href="javascript:void(0)" onclick="wipeSave()">저장 데이터 초기화</a>
+    </div>
   </div>`;
+}
+/* 저장 데이터를 전부 지운다 — 옛 세이브가 새 빌드를 가리는 경우의 탈출구 */
+async function wipeSave(){
+  await Store.del('save_v3');
+  await Store.del('hof_v1');
+  try{ Object.keys(localStorage).filter(k=>k.indexOf(STORE_NS)===0).forEach(k=>localStorage.removeItem(k)); }catch(e){}
+  G.hasSave=false; G.hof=[]; G.p=null;
+  alert('저장 데이터를 모두 지웠습니다. 새로운 야구 인생으로 시작하세요.');
+  render();
+}
+/* 모듈 로드 자기점검 — 하나라도 빠지면 화면에 바로 알린다 */
+function bootCheck(){
+  const need=[['1-core','Store'],['2-data-stats','POSV'],['3-data-story','ENDINGS'],
+              ['4-league','syncPlayerEntry'],['5-player','PROSPECT'],
+              ['6-calendar','advance'],['8-dot','DOT']];
+  const miss=need.filter(([f,sym])=>{try{return typeof eval(sym)==='undefined';}catch(e){return true;}}).map(x=>x[0]);
+  if(miss.length){
+    document.getElementById('app').innerHTML=
+      '<div class="title"><h1>로드 실패</h1><p class="sub">다음 파일을 불러오지 못했습니다:<br><b>'+
+      miss.map(f=>'js/'+f+'.js').join('<br>')+
+      '</b><br><br>zip을 통째로 새 폴더에 풀고 그 안의 index.html을 여세요.<br>'+
+      'js 폴더가 index.html과 같은 위치에 있어야 합니다.</p></div>';
+    return false;
+  }
+  return true;
 }
 /* ── 선수 생성 (선수 카드) ── */
 function viewCreate(){
