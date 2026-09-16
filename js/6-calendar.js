@@ -135,7 +135,11 @@ function runPhase(ph){
       p.fatigue=clamp(p.fatigue-3,0,100);
       p.stress=clamp((p.stress||20)-2,0,100);
     }else{
-      p.stress=clamp((p.stress||20)+3+(p.lv==='2군'?2:0),0,100);
+      /* 기대를 받고 들어온 선수가 기대만큼 못하면 스트레스가 눈덩이처럼 커진다.
+         그 체인이 슬럼프·강등으로 이어져야 "천재도 실패할 수 있다"가 성립한다. */
+      const hypePress=(p.hype||0)>0&&p.season&&(p.season.war||0)<2.5
+        ? Math.round(p.hype/5) : 0;
+      p.stress=clamp((p.stress||20)+3+(p.lv==='2군'?2:0)+hypePress,0,100);
     }
     if(p.rehabLeft>0){                               // 재활 카운트다운
       p.rehabLeft--;
@@ -155,16 +159,17 @@ function runPhase(ph){
     if(!p.season||!m.season)return 'skip';
     if(p.status==='부상'){
       if(weekly()&&G.cal.week!==WEEKS_IN_MONTH)return 'skip';   // 달에 한 번만 알린다
-      return scene({when:nowLabel(),title:'재활실',
+      return scene({when:nowLabel(),dot:'rehab',title:'재활실',
         body:`${m.label}. 그는 그라운드 대신 재활실에 있었다.`,
         log:['이번 달 경기에 나서지 못했다.'],cta:'계속'});
     }
     const unit=weekly()?weekFrac():m.frac;             // 주간이면 그 주 몫만 시뮬레이션
     const label=weekly()?`${m.label} ${WEEK_LABEL[Math.max(0,G.cal.week-1)]}`:m.label;
     const before=snapStats(p);
+    const pre=gameSnap(p);                             // 도트 판정용 (홈런·무실점)
     const log=simHalf(p,label,p.clutchBonus*.2,unit,{m:[m.m]});
     p.monthLog=(p.monthLog||[]).concat(log).slice(-6);
-    return scene({when:nowLabel(),title:'경기',body:'',log,
+    return scene({when:nowLabel(),dot:gameDot(p,pre),title:'경기',body:'',log,
       diff:statDiff(p,before),cta:'계속'});
   }
 
@@ -177,7 +182,7 @@ function runPhase(ph){
     newSeason(p);
     p.nick=nickname(p);
     const cl=competitionCheck(p);
-    return scene({when:nowLabel('시즌 준비'),html:seasonCardHtml(p),log:cl,cta:'시즌 시작'});
+    return scene({when:nowLabel('시즌 준비'),dot:'seasonStart',html:seasonCardHtml(p),log:cl,cta:'시즌 시작'});
   }
   case 'event':return storyEvent();
   case 'moment':case 'moment1':case 'moment2':case 'moment3':return momentEvent();
@@ -186,7 +191,7 @@ function runPhase(ph){
     const c=comboCheck(p);
     if(!c)return 'skip';
     c.run(p);
-    return scene({when:'특성 조합',title:c.title,body:c.text,cta:'계속'});
+    return scene({when:'특성 조합',dot:'evGood',title:c.title,body:c.text,cta:'계속'});
   }
   case 'trade':return tradePhase();
   case 'leagueOff':{
@@ -194,13 +199,13 @@ function runPhase(ph){
     if(!notes.length)return 'skip';
     const cards=notes.slice(0,6).map(t=>({tag:'리그',text:t,y:p.year}));
     if(L)L.news=(L.news||[]).concat(cards).slice(-60);
-    return scene({when:nowLabel('리그'),title:'리그는 계속 움직인다',
+    return scene({when:nowLabel('리그'),dot:'news',title:'리그는 계속 움직인다',
       html:newsHtml(cards),cta:'계속'});
   }
   case 'rank':{
     const log=rankCheck(p);
     const news=genNews(p);
-    return scene({when:nowLabel('정규시즌 종료'),title:'순위가 결정됐다',
+    return scene({when:nowLabel('정규시즌 종료'),dot:p.inPost?'playoffIn':'playoffOut',title:'순위가 결정됐다',
       html:newsHtml(news),log,cta:p.inPost?'가을 야구로':'시즌 결산'});
   }
   case 'ksMoment':{
@@ -210,7 +215,7 @@ function runPhase(ph){
   case 'post':{
     if(!p.inPost)return 'skip';
     const log=postseason(p);
-    return scene({when:nowLabel(),title:'가을',body:'',log,cta:'시즌 결산'});
+    return scene({when:nowLabel(),dot:p.awards.champ&&p.timeline.some(t=>t.y===G.cal.year&&t.t==='한국시리즈 우승')?'ksWin':'ksIn',title:'가을',body:'',log,cta:'시즌 결산'});
   }
   case 'award':{
     if(!p.season)return 'skip';
@@ -221,8 +226,9 @@ function runPhase(ph){
     if(p.farm&&p.farm.g){p.season.farm={g:p.farm.g,h:p.farm.h,ab:p.farm.ab,hr:p.farm.hr,
       rbi:p.farm.rbi,ip:p.farm.ip,w:p.farm.w,er:p.farm.er,k:p.farm.k};}
     p.career.seasons.push(JSON.parse(JSON.stringify(p.season)));
-    return scene({when:nowLabel(),title:`${p.year} 시즌 결산`,
-      html:seasonSummaryHtml(p,got,agl),cta:'계속'});
+    return scene({when:nowLabel(),dot:got.includes('정규시즌 MVP')?'awardMvp':got.includes('신인왕')?'awardRookie':
+        got.includes('골든글러브')?'awardGlove':got.length?'awardTitle':'seasonEnd',
+      title:`${p.year} 시즌 결산`,html:seasonSummaryHtml(p,got,agl),cta:'계속'});
   }
   case 'traits':{
     if(!p.season)return 'skip';
@@ -246,7 +252,7 @@ function runPhase(ph){
   case 'nat':{
     const r=natCall(p);
     if(!r)return 'skip';
-    return scene({when:'국가대표',title:'태극마크',body:'',log:[r],cta:'계속'});
+    return scene({when:'국가대표',dot:'awardTitle',title:'태극마크',body:'',log:[r],cta:'계속'});
   }
   case 'fa':return faPhase();
   /* ── 신규: 재계약 / 연간 정산 (요구 20·21) ── */
@@ -254,9 +260,14 @@ function runPhase(ph){
     if(!p.season||p.retired)return 'skip';
     const r=salaryReview(p);
     const money=settleYear(p);
+    p.salaryHist=p.salaryHist||[];
+    p.salaryHist.push({y:G.cal.year+1,sal:r.next,mv:r.mv,
+      note:r.diff>0?`${wonText(r.diff)} 인상`:r.diff<0?`${wonText(-r.diff)} 삭감`:'동결'});
+    p.contractLog=p.contractLog||[];
+    p.contractLog.push({y:G.cal.year+1,team:p.team,sal:r.next,years:p.money.years});
     const arrow=r.diff>0?'▲':r.diff<0?'▼':'—';
     const cls=r.diff>0?'plus':r.diff<0?'minus':'';
-    return scene({when:nowLabel('재계약'),title:'연봉 협상',
+    return scene({when:nowLabel('재계약'),dot:'money',title:'연봉 협상',
       html:`<div class="diffbox"><h4>${G.cal.year+1} 계약</h4>
         <div class="dline ${cls}"><span class="nm">연봉</span>
           <span class="from">${wonText(r.prev)}</span><span class="dim">→</span>
@@ -279,6 +290,20 @@ function runPhase(ph){
     return 'skip';                                   // 큐가 비면 advance()가 1월로 넘긴다
   }}
   return 'skip';
+}
+
+/* 그 경기의 내용에 맞는 도트를 고른다 — 시뮬 전후를 비교한다 */
+function gameSnap(p){
+  const l=(p.lv==='2군'?p.farm:p.season)||{};
+  return {hr:l.hr||0,ip:l.ip||0,er:l.er||0};
+}
+function gameDot(p,pre){
+  const l=(p.lv==='2군'?p.farm:p.season)||{};
+  if(p.pos==='pitcher'){
+    const ip=(l.ip||0)-pre.ip, er=(l.er||0)-pre.er;
+    if(ip>=8&&er===0)return 'gameShutout';
+  }else if((l.hr||0)>pre.hr)return 'gameHomer';
+  return 'gameStart';
 }
 
 /* ==========================================================================
@@ -393,7 +418,14 @@ const ACTIONS={
       p.fatigue=clamp(p.fatigue+AS(10),0,100);p.trainCount+=(weekly()?ACT_WEEK_SCALE:1);
       return['팀 훈련을 소화했다.'];}},
 
-  soloTrain:{icon:'💪',name:'개인 훈련',gain:'능력 ↑↑',cost:'피로 ↑↑ · 부상 위험 · 감독 관계 변화 없음',
+  soloTrain:{icon:'💪',name:'개인 훈련',
+    gain:p=>{ const ts=TRAININGS[p.pos].filter(t=>!t.rest);
+      const best=ts.map(t=>trainPreview(p,t,1,1)).map(pv=>pv.rows.reduce((a,r)=>Math.max(a,r.v),0));
+      const lo=Math.min(...best), hi=Math.max(...best);
+      return `주 능력 +${Math.max(1,Math.round(lo))}~${Math.max(1,Math.round(hi))} (종목 선택)`; },
+    cost:p=>{ const ts=TRAININGS[p.pos].filter(t=>!t.rest);
+      const f=ts.map(t=>trainPreview(p,t,1,1).fat);
+      return `피로 +${Math.round(Math.min(...f))}~${Math.round(Math.max(...f))} · 부상 위험`; },
     menu:1},
 
   focus:{icon:'⚾',name:'경기에 집중',gain:()=>`${weekly()?'이번 주':'이번 달'} 경기력 ↑ · 승부욕 ↑`,cost:()=>`피로 ${ASD(5)}`,
@@ -540,7 +572,7 @@ function rosterScene(opening){
     flagAt(p,'firstCallUp');
     p.timeline.push({y:G.cal.year,m:G.cal.month,t:'프로 1군 데뷔'});
     p.stress=clamp((p.stress||20)+8,0,100);
-    return scene({when:nowLabel(),lvWas:before,title:'전화가 왔다',
+    return scene({when:nowLabel(),lvWas:before,dot:'callUp',title:'전화가 왔다',
       body:`"내일 1군에 합류해."\n\n잠시 말이 나오지 않았다.\n\n${p.age}살의 ${MON().mood}.\n당신은 처음으로 프로야구 1군 선수 명단에 이름을 올렸다.`,
       log:[`${G.cal.year}.${String(G.cal.month).padStart(2,'0')} · 1군 등록 (${now})`]
         .concat(farmLine?[farmLine]:[]),
@@ -548,7 +580,7 @@ function rosterScene(opening){
   }
   if(before==='2군'&&now!=='2군'){
     rel(p,'manager',3);
-    return scene({when:nowLabel(),lvWas:before,title:'콜업',
+    return scene({when:nowLabel(),lvWas:before,dot:'callUp',title:'콜업',
       body:`다시 1군의 부름을 받았다.\n\n이번엔 자리를 지킬 수 있을까.`,
       log:[`보직 · ${now}`].concat(farmLine?[farmLine]:[]),cta:'계속'});
   }
@@ -557,7 +589,7 @@ function rosterScene(opening){
     p.stress=clamp((p.stress||20)+12,0,100);
     tend(p,{patience:2});
     flagAt(p,'demoted');
-    return scene({when:nowLabel(),lvWas:before,title:'강등',
+    return scene({when:nowLabel(),lvWas:before,dot:'demote',title:'강등',
       body:`감독실에서 짧은 이야기를 들었다.\n\n"내려가서 다시 만들어 와."`,
       log:['2군으로 내려간다.'].concat(depth?[depth]:[]),cta:'계속'});
   }

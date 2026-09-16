@@ -7,16 +7,16 @@
    [2] DATA — 구단
    ========================================================================== */
 const TEAMS=[
-  {id:'seoul', name:'서울 블루스',   short:'서울', money:5, dev:3, pdev:3, fan:5, star:5, power:4, tag:'자금력과 팬덤이 리그 최고. 대신 자리 경쟁이 치열하다.'},
-  {id:'busan', name:'부산 웨일스',   short:'부산', money:3, dev:3, pdev:2, fan:5, star:3, power:3, tag:'열성 팬덤. 성적이 나쁘면 여론도 험하다.'},
-  {id:'incheon',name:'인천 마리너스', short:'인천', money:4, dev:2, pdev:4, fan:3, star:4, power:4, tag:'투수 육성의 명가.'},
-  {id:'daejeon',name:'대전 파이오니어스',short:'대전',money:2,dev:5,pdev:3,fan:3,star:2,power:2, tag:'유망주에게 기회를 아끼지 않는다.'},
-  {id:'gwangju',name:'광주 타이탄스', short:'광주', money:4, dev:4, pdev:3, fan:4, star:4, power:4, tag:'전통의 강호. 우승 경험이 많다.'},
-  {id:'daegu', name:'대구 레이더스', short:'대구', money:4, dev:3, pdev:3, fan:4, star:5, power:4, tag:'스타 영입에 적극적이다.'},
-  {id:'suwon', name:'수원 스톰',     short:'수원', money:3, dev:4, pdev:4, fan:3, star:3, power:3, tag:'데이터 야구를 앞세운 신흥 구단.'},
-  {id:'changwon',name:'창원 샤크스', short:'창원', money:2, dev:4, pdev:2, fan:3, star:2, power:2, tag:'가난하지만 끈끈하다.'},
-  {id:'goyang',name:'고양 크라운',   short:'고양', money:3, dev:5, pdev:3, fan:2, star:2, power:3, tag:'키워서 파는 구단. 육성은 최고다.'},
-  {id:'seongnam',name:'성남 레이븐스',short:'성남',money:2,dev:2,pdev:2,fan:2,star:2,power:2, tag:'만년 하위권. 하지만 기회는 많다.'}
+  {id:'seoul', name:'서울 블루스',   short:'서울', money:5, dev:3, pdev:3, fan:5, star:5, power:4, color:'#2f5fd0', tag:'자금력과 팬덤이 리그 최고. 대신 자리 경쟁이 치열하다.'},
+  {id:'busan', name:'부산 웨일스',   short:'부산', money:3, dev:3, pdev:2, fan:5, star:3, power:3, color:'#1c3f8f', tag:'열성 팬덤. 성적이 나쁘면 여론도 험하다.'},
+  {id:'incheon',name:'인천 마리너스', short:'인천', money:4, dev:2, pdev:4, fan:3, star:4, power:4, color:'#c0392b', tag:'투수 육성의 명가.'},
+  {id:'daejeon',name:'대전 파이오니어스',short:'대전',money:2,dev:5,pdev:3,fan:3,star:2,power:2, color:'#e07b2a', tag:'유망주에게 기회를 아끼지 않는다.'},
+  {id:'gwangju',name:'광주 타이탄스', short:'광주', money:4, dev:4, pdev:3, fan:4, star:4, power:4, color:'#d4352f', tag:'전통의 강호. 우승 경험이 많다.'},
+  {id:'daegu', name:'대구 레이더스', short:'대구', money:4, dev:3, pdev:3, fan:4, star:5, power:4, color:'#1f6fb5', tag:'스타 영입에 적극적이다.'},
+  {id:'suwon', name:'수원 스톰',     short:'수원', money:3, dev:4, pdev:4, fan:3, star:3, power:3, color:'#7a4bb5', tag:'데이터 야구를 앞세운 신흥 구단.'},
+  {id:'changwon',name:'창원 샤크스', short:'창원', money:2, dev:4, pdev:2, fan:3, star:2, power:2, color:'#1f8f6a', tag:'가난하지만 끈끈하다.'},
+  {id:'goyang',name:'고양 크라운',   short:'고양', money:3, dev:5, pdev:3, fan:2, star:2, power:3, color:'#b5453f', tag:'키워서 파는 구단. 육성은 최고다.'},
+  {id:'seongnam',name:'성남 레이븐스',short:'성남',money:2,dev:2,pdev:2,fan:2,star:2,power:2, color:'#3b8a3f', tag:'만년 하위권. 하지만 기회는 많다.'}
 ];
 const TEAM=id=>TEAMS.find(t=>t.id===id);
 
@@ -156,31 +156,31 @@ const TR=id=>TRAITS.find(t=>t.id===id);
    ========================================================================== */
 const TRAININGS={
   batter:[
-    {id:'bat', name:'타격 훈련', sub:'컨택 ↑↑ 파워 ↑ / 체력 ↓', up:{contact:3.2,power:1.2}, fatigue:14},
-    {id:'pow', name:'장타 훈련', sub:'파워 ↑↑↑ / 컨택 ↓ 삼진 ↑', up:{power:4.2,contact:-0.8}, fatigue:16, tend:{aggression:2}},
-    {id:'eye', name:'선구안 훈련', sub:'선구안 ↑↑ 멘탈 ↑', up:{eye:3.4,mental:0.8}, fatigue:9, tend:{patience:2}},
-    {id:'def', name:'수비 훈련', sub:'수비 ↑↑ 송구 ↑', up:{defense:3.2,throw:2.0}, fatigue:12},
-    {id:'run', name:'주루 훈련', sub:'주력·주루 ↑↑ / 부상 위험 ↑', up:{speed:2.6,run:3.0}, fatigue:13, risk:.5},
-    {id:'wt',  name:'웨이트', sub:'파워·체력 ↑ / 주력 성장 둔화', up:{power:2.6,stamina:2.2,speed:-0.5}, fatigue:15},
-    {id:'rest',name:'휴식', sub:'체력 회복 / 성장 없음', up:{}, fatigue:-34, rest:1}
+    {id:'bat', name:'타격 훈련', sub:'컨택 +3.2 · 파워 +1.2 · 피로 +14', up:{contact:3.2,power:1.2}, fatigue:14},
+    {id:'pow', name:'장타 훈련', sub:'파워 +4.2 · 컨택 -0.8 · 피로 +16', up:{power:4.2,contact:-0.8}, fatigue:16, tend:{aggression:2}},
+    {id:'eye', name:'선구안 훈련', sub:'선구안 +3.4 · 멘탈 +0.8 · 피로 +9', up:{eye:3.4,mental:0.8}, fatigue:9, tend:{patience:2}},
+    {id:'def', name:'수비 훈련', sub:'수비 +3.2 · 송구 +2 · 피로 +12', up:{defense:3.2,throw:2.0}, fatigue:12},
+    {id:'run', name:'주루 훈련', sub:'주력 +2.6 · 주루 +3 · 피로 +13', up:{speed:2.6,run:3.0}, fatigue:13, risk:.5},
+    {id:'wt',  name:'웨이트', sub:'파워 +2.6 · 체력 +2.2 · 주력 -0.5 · 피로 +15', up:{power:2.6,stamina:2.2,speed:-0.5}, fatigue:15},
+    {id:'rest',name:'휴식', sub:'피로 -34', up:{}, fatigue:-34, rest:1}
   ],
   pitcher:[
-    {id:'velo',name:'구속 훈련', sub:'구속 ↑↑ / 제구 ↓ 부상 위험 ↑', up:{velo:3.4,control:-0.8}, fatigue:17, risk:.8, tend:{aggression:2}},
-    {id:'ctrl',name:'제구 훈련', sub:'제구 ↑↑↑', up:{control:3.8}, fatigue:10, tend:{patience:2}},
-    {id:'brk', name:'변화구 연마', sub:'변화구 ↑↑ 구위 ↑', up:{breaking:3.4,stuff:1.2}, fatigue:11},
-    {id:'stu', name:'구위 훈련', sub:'구위 ↑↑ / 체력 ↓', up:{stuff:3.2,velo:0.8}, fatigue:15},
-    {id:'sta', name:'지구력 훈련', sub:'체력·회복력 ↑↑', up:{stamina:3.0,recovery:2.2}, fatigue:13},
-    {id:'men', name:'실전 시뮬레이션', sub:'멘탈·위기관리 ↑', up:{mental:2.4,crisis:3.0}, fatigue:9},
-    {id:'rest',name:'휴식', sub:'체력 회복 / 성장 없음', up:{}, fatigue:-34, rest:1}
+    {id:'velo',name:'구속 훈련', sub:'구속 +3.4 · 제구 -0.8 · 피로 +17', up:{velo:3.4,control:-0.8}, fatigue:17, risk:.8, tend:{aggression:2}},
+    {id:'ctrl',name:'제구 훈련', sub:'제구 +3.8 · 피로 +10', up:{control:3.8}, fatigue:10, tend:{patience:2}},
+    {id:'brk', name:'변화구 연마', sub:'변화구 +3.4 · 구위 +1.2 · 피로 +11', up:{breaking:3.4,stuff:1.2}, fatigue:11},
+    {id:'stu', name:'구위 훈련', sub:'구위 +3.2 · 구속 +0.8 · 피로 +15', up:{stuff:3.2,velo:0.8}, fatigue:15},
+    {id:'sta', name:'지구력 훈련', sub:'체력 +3 · 회복력 +2.2 · 피로 +13', up:{stamina:3.0,recovery:2.2}, fatigue:13},
+    {id:'men', name:'실전 시뮬레이션', sub:'멘탈 +2.4 · 위기관리 +3 · 피로 +9', up:{mental:2.4,crisis:3.0}, fatigue:9},
+    {id:'rest',name:'휴식', sub:'피로 -34', up:{}, fatigue:-34, rest:1}
   ],
   catcher:[
-    {id:'bat', name:'타격 훈련', sub:'컨택 ↑↑ 파워 ↑ / 체력 ↓', up:{contact:3.0,power:1.2}, fatigue:14},
-    {id:'blk', name:'블로킹 훈련', sub:'블로킹·포구 ↑↑ / 체력 ↓', up:{blocking:3.4,catching:2.2}, fatigue:16},
-    {id:'thr', name:'송구 훈련', sub:'송구 ↑↑ 수비 ↑', up:{throw:3.4,defense:1.4}, fatigue:12},
-    {id:'lead',name:'투수진 미팅', sub:'리드 ↑↑ 멘탈 ↑ / 팀 관계 ↑', up:{lead:3.4,mental:1.2}, fatigue:7, tend:{leadership:3,loyalty:2}},
-    {id:'wt',  name:'웨이트', sub:'파워·체력 ↑', up:{power:2.6,stamina:2.4}, fatigue:15},
-    {id:'eye', name:'선구안 훈련', sub:'선구안 ↑↑', up:{eye:3.2}, fatigue:9, tend:{patience:2}},
-    {id:'rest',name:'휴식', sub:'체력 회복 / 성장 없음', up:{}, fatigue:-34, rest:1}
+    {id:'bat', name:'타격 훈련', sub:'컨택 +3 · 파워 +1.2 · 피로 +14', up:{contact:3.0,power:1.2}, fatigue:14},
+    {id:'blk', name:'블로킹 훈련', sub:'블로킹 +3.4 · 포구 +2.2 · 피로 +16', up:{blocking:3.4,catching:2.2}, fatigue:16},
+    {id:'thr', name:'송구 훈련', sub:'송구 +3.4 · 수비 +1.4 · 피로 +12', up:{throw:3.4,defense:1.4}, fatigue:12},
+    {id:'lead',name:'투수진 미팅', sub:'리드 +3.4 · 멘탈 +1.2 · 피로 +7', up:{lead:3.4,mental:1.2}, fatigue:7, tend:{leadership:3,loyalty:2}},
+    {id:'wt',  name:'웨이트', sub:'파워 +2.6 · 체력 +2.4 · 피로 +15', up:{power:2.6,stamina:2.4}, fatigue:15},
+    {id:'eye', name:'선구안 훈련', sub:'선구안 +3.2 · 피로 +9', up:{eye:3.2}, fatigue:9, tend:{patience:2}},
+    {id:'rest',name:'휴식', sub:'피로 -34', up:{}, fatigue:-34, rest:1}
   ]
 };
 

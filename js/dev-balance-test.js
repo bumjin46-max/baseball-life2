@@ -1,6 +1,7 @@
 /* dev-balance-test.js — 개발용 밸런스 검증 하네스 (v3.0 Phase 5)
    브라우저 콘솔에서:
-     runBalanceTest(100)   전체 검증 (요구 24~30)
+     runBalanceTest(500)   전체 검증 (v3.0 요구 24~30 + v3.1 요구 17)
+     testProspect(120)     유망주 등급별 커리어 — "좋은 시작 ≠ 레전드" 확인
      checkPositions(6)     포지션 어휘 불일치만 빠르게
      quickLook()           현재 리그 스냅샷 한 장
    ※ 배포 시 index.html 에서 이 <script> 한 줄만 지우면 된다. */
@@ -32,7 +33,7 @@ function runBalanceTest(n){
   const t0=Date.now();
   _CHECK.length=0;
   const w0=console.warn; let warns=0; console.warn=()=>{warns++;};
-  G.noSave=1;   // 시뮬레이션 중에는 저장하지 않는다
+  G.noSave=1; G.noRender=1;   // 저장·렌더 없이 엔진만 돌린다 (도트 PNG 인코딩이 매우 비싸다)
 
   const R_={
     war:[], seasons:[], inj:[], maxStat:0, mvp:0, allstar:0, champ:0,
@@ -44,7 +45,10 @@ function runBalanceTest(n){
     aiAgeBuckets:{'18-21':0,'22-25':0,'26-29':0,'30-33':0,'34+':0}, aiSamples:0,
     aiRetireAge:[], aiTopWar:[], firstTeam:[], secondTeam:[],
     hrLead:[], mvpWar:[], rookieAge:[],
-    monthsSeen:{}, screensPerYear:[]
+    monthsSeen:{}, screensPerYear:[],
+    /* v3.1 (요구 17) */
+    grades:{}, gradeWar:{}, gradeLegend:{}, faMove:0, faElig:0,
+    rookieWin:0, earlyRetire:0, peakAge:[]
   };
   const CB_TITLES=['그때 그 관중석','그 손','주장 완장','그때의 청구서','가지 않은 길',
                    '그 건의서','그 감독','평판이라는 것','비어 있던 자리','마지막 등판',
@@ -75,6 +79,15 @@ function runBalanceTest(n){
     }
 
     const p=G.p;
+    /* 유망주 등급별 결과 — "좋은 시작 ≠ 레전드" 를 확인한다 */
+    const gd=p.grade||'normal';
+    R_.grades[gd]=(R_.grades[gd]||0)+1;
+    (R_.gradeWar[gd]=R_.gradeWar[gd]||[]).push(p.tot.war);
+    if(p.tot.war>=45)R_.gradeLegend[gd]=(R_.gradeLegend[gd]||0)+1;
+    if(p.seasonsPlayed<=7)R_.earlyRetire++;
+    if(p.awards.rookie)R_.rookieWin++;
+    if(p.peakAge)R_.peakAge.push(p.peakAge);
+    if(p.seasonsPlayed>=8){R_.faElig++;if(p.teamsPlayed.length>1)R_.faMove++;}
     R_.war.push(p.tot.war); R_.seasons.push(p.seasonsPlayed); R_.inj.push(p.injuries.length);
     R_.mvp+=p.awards.mvp; R_.allstar+=p.awards.allstar; R_.champ+=p.awards.champ;
     R_.endings[p.ending.title]=(R_.endings[p.ending.title]||0)+1;
@@ -112,11 +125,11 @@ function runBalanceTest(n){
       L.history.forEach(h=>{R_.hrLead.push(h.hr.v);R_.mvpWar.push(h.mvp.war);});
     }
   }
-  console.warn=w0; G.noSave=0;
+  console.warn=w0; G.noSave=0; G.noRender=0;
 
   /* ── 리포트 ── */
   const sec=t=>console.log(`\n━━ ${t} ${'━'.repeat(Math.max(0,52-t.length))}`);
-  console.log(`\n╔══ 야구 인생 v3.0 밸런스 검증 · ${n}커리어 · ${((Date.now()-t0)/1000).toFixed(0)}초 ══╗`);
+  console.log(`\n╔══ 야구 인생 v3.1 밸런스 검증 · ${n}커리어 · ${((Date.now()-t0)/1000).toFixed(0)}초 ══╗`);
 
   sec('26. 플레이어 WAR 분포');
   /* ★ 이 분포는 바이모달이다 — 2군 인생(WAR 0 근처)과 1군 인생(25+)으로 갈린다.
@@ -135,6 +148,26 @@ function runBalanceTest(n){
   console.log(`  MVP ${R_.mvp}회 · 올스타 ${R_.allstar}회 · 우승 ${R_.champ}회 (${n}커리어 합계)`);
   const wb={};R_.war.forEach(w=>{const k=w<0?'  <0':w<10?' 0-10':w<25?'10-25':w<45?'25-45':w<70?'45-70':'  70+';wb[k]=(wb[k]||0)+1;});
   Object.keys(wb).sort().forEach(k=>console.log(`    ${k}  ${_pad(_bar(wb[k],n,28),28)} ${_pct(wb[k],n)}%`));
+
+  sec('v3.1 — 유망주 등급 (요구 3·17)');
+  [['normal','평범한 유망주',75],['bright','눈부신 유망주',23],['genius','천재',2]].forEach(([k,lab,want])=>{
+    const c=R_.grades[k]||0, w=R_.gradeWar[k]||[];
+    const leg=R_.gradeLegend[k]||0;
+    console.log(`    ${_pad(lab,14)} ${_pad(_pct(c,n)+'%',5)} (목표 ${want}%)  n=${_pad(c,4)}`+
+      (c?`  WAR 중앙 ${_pad(_q(w,.5),5)} · 레전드(45+) ${_pct(leg,c)}%`:''));
+  });
+  const gEx=_pct(R_.grades.genius||0,n);
+  console.log(`  ${_judge('천재 등장률',gEx,0,6,'%')}  ← 흔해지면 희소성이 사라진다`);
+  /* 천재는 2% 라서 500커리어를 돌려도 n=8~10 이다. 그 표본으로 레전드 비율을 재면
+     같은 설정에서 50% 와 88% 가 번갈아 나온다. 등급을 고정해 따로 재야 한다.
+     → testProspect(120) */
+  console.log(`  천재 표본 n=${R_.grades.genius||0} — 레전드 비율은 표본이 작아 여기서 판정하지 않는다`);
+  console.log(`    정확히 보려면: testProspect(120)`);
+
+  sec('v3.1 — 커리어 갈림 (요구 17)');
+  console.log(`  FA 이적률 ${R_.faElig?_pct(R_.faMove,R_.faElig):0}% (자격 ${R_.faElig}명)`+
+    ` · 신인왕 ${_pct(R_.rookieWin,n)}% · 조기 은퇴(7시즌 이하) ${_pct(R_.earlyRetire,n)}%`);
+  console.log(`  전성기 나이 중앙 ${_q(R_.peakAge,.5)}세`);
 
   sec('27. 엔딩 분포');
   const es=Object.entries(R_.endings).sort((a,b)=>b[1]-a[1]);
@@ -200,6 +233,53 @@ function runBalanceTest(n){
 function _Object_vals(o){return Object.keys(o).map(k=>o[k]);}
 
 /* ==========================================================================
+   유망주 등급별 커리어 — 등급을 고정해 충분한 표본으로 잰다 (요구 3·17)
+   "좋은 초기 능력치 ≠ 레전드" 를 확인하는 전용 테스트.
+   ========================================================================== */
+function testProspect(n){
+  n=n||100;
+  const t0=Date.now();
+  const w0=console.warn;console.warn=()=>{};
+  G.noSave=1;G.noRender=1;
+  const out={};
+  ['normal','bright','genius'].forEach(gd=>{
+    const war=[],seasons=[],mvp=[],end={};
+    for(let i=0;i<n;i++){
+      /* startGame 은 등급을 무작위로 뽑으므로, 생성 직후 같은 등급으로 갈아끼운다 */
+      startGame('PG'+i,['batter','pitcher','catcher'][i%3]);
+      const keep=G.p;
+      const forced=createPlayer(keep.name,keep.pos,gd);
+      forced.team=keep.team;forced.teamsPlayed=[keep.team];forced.rival=keep.rival;
+      G.p=forced;
+      let g=0;
+      while(G.screen==='game'&&g++<8000){
+        if(G.ui&&G.ui.choices)choose(Math.floor(Math.random()*G.ui.choices.length));else advance();
+      }
+      war.push(G.p.tot.war);seasons.push(G.p.seasonsPlayed);mvp.push(G.p.awards.mvp);
+      end[G.p.ending.title]=(end[G.p.ending.title]||0)+1;
+    }
+    out[gd]={war,seasons,mvp,end,
+      legend:_pct(war.filter(w=>w>=45).length,n),
+      fail:_pct(war.filter(w=>w<10).length,n)};
+  });
+  console.warn=w0;G.noSave=0;G.noRender=0;
+  console.log(`\n╔══ 유망주 등급별 커리어 · 등급마다 ${n}회 · ${((Date.now()-t0)/1000).toFixed(0)}초 ══╗`);
+  console.log(`  ${_pad('등급',14)} ${_pad('WAR 중앙',9)} ${_pad('75%',6)} ${_pad('레전드',7)} ${_pad('실패',6)} 최다 엔딩`);
+  [['normal','평범한 유망주'],['bright','눈부신 유망주'],['genius','천재']].forEach(([k,lab])=>{
+    const o=out[k];
+    const top=Object.entries(o.end).sort((a,b)=>b[1]-a[1])[0];
+    console.log(`  ${_pad(lab,14)} ${_pad(_q(o.war,.5),9)} ${_pad(_q(o.war,.75),6)} `+
+      `${_pad(o.legend+'%',7)} ${_pad(o.fail+'%',6)} ${top[0]} ${_pct(top[1],n)}%`);
+  });
+  const gl=out.genius.legend, gf=out.genius.fail;
+  console.log(`\n  ${_judge('천재의 레전드 도달률',gl,0,70,'%')}  ← 좋은 시작이 결과를 보장하면 안 된다`);
+  console.log(`  ${_judge('천재의 실패 비율',gf,5,100,'%')}  ← 천재도 실패할 수 있어야 한다`);
+  const bad=_CHECK.slice(-2).filter(c=>!c.ok);
+  console.log(`╚══ ${bad.length?'⚠️ '+bad.map(c=>c.label).join(', '):'전부 통과'} ══╝\n`);
+  return out;
+}
+
+/* ==========================================================================
    포지션 어휘 불일치 검사 — 투수에게 "네 스윙"이 나가지 않는지
    ========================================================================== */
 function checkPositions(rounds){
@@ -210,7 +290,7 @@ function checkPositions(rounds){
     catcher:['투구폼','섀도 피칭','다승왕 하겠']
   };
   const hits=[];
-  G.noSave=1;
+  G.noSave=1; G.noRender=1;
   for(const pos of ['batter','pitcher','catcher']){
     for(let t=0;t<rounds;t++){
       startGame('PC',pos);
@@ -225,7 +305,7 @@ function checkPositions(rounds){
       }
     }
   }
-  G.noSave=0;
+  G.noSave=0; G.noRender=0;
   const uniq=[...new Set(hits)];
   console.log(uniq.length?`⚠️ 포지션 불일치 ${uniq.length}건\n  ${uniq.join('\n  ')}`
                         :`✅ 포지션 불일치 0건 (${rounds*3}판 검사)`);

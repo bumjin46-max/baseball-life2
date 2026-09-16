@@ -395,3 +395,54 @@ table.rec tr.farm td{color:var(--chalk-dim);font-style:italic}
 .chain .last b{color:var(--lamp);font-family:var(--font);font-size:15px}
 .chain .last span{color:var(--lamp);font-weight:800;font-size:14.5px}
 .chain .last::before{background:var(--lamp);width:7px;height:7px;left:-14px}
+
+/* ══════════════════════════════════════════════════════════════════
+   v3.1 — 도트 연출
+   canvas 로 그린 64×32 픽셀 그림을 확대해 쓴다. 보간을 끄는 게 핵심.
+   ══════════════════════════════════════════════════════════════════ */
+.dot{image-rendering:pixelated;image-rendering:crisp-edges;display:block;
+  width:100%;height:auto;max-width:320px;margin:0 auto}
+.dotbox{margin:0 0 14px;padding:8px;border:1px solid var(--line);border-radius:3px;
+  background:linear-gradient(180deg,rgba(0,0,0,.25),rgba(0,0,0,.1))}
+.lb-char{padding:6px 16px 2px;border-bottom:1px solid var(--line);
+  background:linear-gradient(180deg,rgba(0,0,0,.2),transparent)}
+.lb-char .dot{max-width:260px}
+.lifeboard.compact .lb-char{display:none}
+@media(max-width:940px){
+  .dotbox{margin-bottom:12px;padding:6px}
+  .dot{max-width:280px}
+  /* 좁은 화면에서 캐릭터를 아래에 full-width 로 두면 세로를 176px 먹는다.
+     헤더 우측에 겹쳐 놓아 세로 공간을 전혀 쓰지 않게 한다. */
+  .lb-top{position:relative;padding-right:96px}
+  .lb-char{position:absolute;right:6px;top:2px;width:88px;padding:0;border:none;background:none;z-index:1}
+  .lb-char .dot{max-width:88px}
+}
+@media(max-width:400px){
+  .lb-top{padding-right:84px}
+  .lb-char{width:76px;right:4px}
+  .lb-char .dot{max-width:76px}
+}
+@media(max-height:500px) and (orientation:landscape){ .lb-char{display:none} }
+
+/* v3.1 — 성장 그래프 / 라이벌 */
+.gsel{display:flex;flex-wrap:wrap;gap:4px;margin-bottom:8px}
+.gk{font-size:11px;padding:4px 9px;background:rgba(255,255,255,.04);
+  border:1px solid var(--line);border-radius:999px;color:var(--chalk-dim);min-height:30px}
+.gk.on{color:var(--night);background:var(--lamp);border-color:var(--lamp);font-weight:800}
+.gchart{width:100%;height:auto;display:block;margin:2px 0 6px}
+.gax{fill:var(--chalk-dim);font-size:8px;font-family:var(--digit)}
+.rivalcard{border:1px solid var(--line);border-radius:3px;padding:10px;
+  background:linear-gradient(180deg,rgba(255,255,255,.04),transparent)}
+.rvn{font-size:15px;font-weight:800}
+.rvg{display:grid;grid-template-columns:repeat(4,1fr);gap:4px;margin-top:8px;text-align:center}
+.rvg span{display:block}
+.rvg b{display:block;font-family:var(--digit);font-size:18px;color:var(--lamp);font-weight:400}
+.rvg i{font-style:normal;font-size:10px;color:var(--chalk-dim)}
+.race{margin-bottom:9px}
+.race .rt{font-size:12px;font-weight:700;margin-bottom:3px}
+.race .rr{display:flex;align-items:center;gap:6px;font-size:11.5px;margin-bottom:2px}
+.race .rn{min-width:58px;color:var(--chalk-dim);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.race .rb{flex:1;height:6px;background:rgba(255,255,255,.07);border-radius:3px;overflow:hidden}
+.race .rb i{display:block;height:100%;background:var(--lamp)}
+.race .rb.alt i{background:var(--red)}
+.race b{font-family:var(--digit);font-size:15px;min-width:26px;text-align:right}

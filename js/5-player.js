@@ -9,11 +9,44 @@
 const COND_NAME=['최악','나쁨','보통','좋음','최고조'];
 const COND_MOD=[-.10,-.05,0,.02,.05];
 
-function createPlayer(name,pos){
+/* v3.1 — 유망주 등급 (요구 3)
+   천재라고 레전드가 보장되지는 않는다. 시작점만 다를 뿐,
+   훈련·부상·선택·특성·팀 상황이 커리어를 결정한다. */
+/* 시작 능력치는 요구대로 +10% / +30% 를 준다.
+   다만 그게 곧 레전드가 되면 안 되므로(요구 3·17) 다른 축에서 대가를 받는다.
+     · pot   : 시작이 높으면 천장까지의 여유가 줄어 성장이 둔해진다
+     · tend  : 재능을 믿는 선수는 성실성이 낮게 출발한다
+     · stress: 기대의 무게는 컨디션을 깎는다
+   실측: 이 보정 전 천재의 레전드 도달률이 83% 였다. */
+/* 시작 능력치는 요구대로 +10% / +30% 를 준다.
+   다만 그게 곧 레전드가 되면 안 되므로(요구 3·17) 세 축에서 대가를 받는다.
+     · pot   : 시작이 높을수록 천장까지의 여유가 적다 — 일찍 완성된 선수는 일찍 정체한다
+     · tend  : 재능을 믿는 선수는 성실성이 낮게 출발한다 (훈련 효율에 직결)
+     · stress: 기대의 무게. 성적이 기대에 못 미치면 매달 더 쌓이고,
+               높은 스트레스 → 컨디션 하락 → 슬럼프 → 감독 신뢰 하락 → 강등 체인을 탄다
+   실측 이력: 보정 없음 → 천재 레전드 83% / 실패 3%.  (testProspect 로 확인) */
+const PROSPECT=[
+  {id:'normal', label:'평범한 유망주', p:.75, stat:1.00, pot:8,  stress:0,
+   tend:{}, desc:'어디에나 있는 신인이다. 여기서부터 시작한다.'},
+  {id:'bright', label:'눈부신 유망주', p:.23, stat:1.10, pot:1,  stress:12,
+   tend:{diligence:-7,star:10},
+   desc:'스카우트 리포트에 별이 하나 더 붙었다. 기대도 그만큼 붙는다.'},
+  {id:'genius', label:'천재',         p:.02, stat:1.30, pot:-12, stress:30,
+   tend:{diligence:-22,star:20,patience:-12},
+   desc:'10년에 한 번 나온다고들 한다. 그 말의 무게는 본인이 진다.'}
+];
+function rollProspect(){
+  const r=Math.random();let acc=0;
+  for(const g of PROSPECT){acc+=g.p;if(r<acc)return g;}
+  return PROSPECT[0];
+}
+function createPlayer(name,pos,forceGrade){
   const base=POS[pos].base, st={};
-  POS[pos].keys.forEach(k=>st[k]=clamp(Math.round(R.norm(base[k]+2,8)),28,74));
+  const gr=forceGrade?PROSPECT.find(x=>x.id===forceGrade)||rollProspect():rollProspect();
+  POS[pos].keys.forEach(k=>
+    st[k]=clamp(Math.round(R.norm(base[k]+2,8)*gr.stat),28,82));
   const o0=ovrOf(pos,st);
-  const pot=clamp(Math.round(o0+R.norm(30,11)),o0+10,99);
+  const pot=clamp(Math.round(o0+R.norm(24+gr.pot,11)),o0+8,99);
   const team=R.pick(TEAMS);
   const rnd=pot+o0>=145?1:(pot+o0>=128?2:(pot+o0>=112?3:R.i(4,6)));
   const p={
@@ -35,6 +68,8 @@ function createPlayer(name,pos){
     lv:'2군',seasonsPlayed:0,peakAge:20,bestWar:0,trainCount:0,
     gamesTotal:0,seenEvents:[],clutchBonus:0,teamBoost:0,retired:false,
     /* ── v3.0 추가 ── */
+    grade:gr.id, gradeLabel:gr.label,   // 유망주 등급 (요구 3)
+    hype:gr.stress,                     // 기대의 무게 — 스트레스 기본선을 올린다
     month:1,                 // 현재 월 (캘린더가 매달 갱신)
     status:'정상',           // 정상 | 부상 | 재활
     rehabLeft:0,             // 남은 재활 개월
@@ -46,7 +81,12 @@ function createPlayer(name,pos){
   };
   p.money.signBonus=[0,25000,12000,6000,3000,1500,800][Math.min(rnd,6)]||800;
   p.money.balance+=p.money.signBonus;
-  p.timeline.push({y:2026,t:`${TEAM(team.id).name} ${rnd}라운드 지명`});
+  p.timeline.push({y:2026,m:1,t:`${TEAM(team.id).name} ${rnd}라운드 지명`});
+  if(gr.id!=='normal')p.timeline.push({y:2026,m:1,t:`${gr.label}으로 주목받다`});
+  tend(p,gr.tend||{});                          // 등급별 성향 편향
+  p.stress=20+(gr.stress||0);                   // 기대의 무게
+  p.stHist=[];                                  // 시즌별 능력치 (요구 7)
+  p.salaryHist=[]; p.contractLog=[];            // 연봉·계약 이력 (요구 16)
   return p;
 }
 function mkRival(myPos){
@@ -88,6 +128,16 @@ function grow(p,o){
   for(const k in o){ if(p.st[k]===undefined)continue;
     p.st[k]=clamp(round(p.st[k]+o[k],1),1,100);}
 }
+/* v3.1 (요구 2) — 나이대별 훈련 효율
+   젊은 선수 = 성장 빠름 / 피로 높음,  고령 선수 = 성장 느림 / 피로 낮음 */
+function ageEff(p){
+  const a=p.age;
+  if(a<=21)return {gain:1.5, fat:1.0, fatAdd:5, label:'유망주'};
+  if(a<=23)return {gain:1.25,fat:1.0, fatAdd:2, label:'성장기'};
+  if(a<=29)return {gain:1.0, fat:1.0, fatAdd:0, label:''};
+  if(a<=32)return {gain:0.75,fat:0.8, fatAdd:0, label:'전성기 후반'};
+  return         {gain:0.5, fat:0.55,fatAdd:0, label:'베테랑'};
+}
 function ageCurve(p){
   const a=p.age, late=tEff(p,'lateGrow');
   if(a<=22)return 1.35; if(a<=27)return 1.05; if(a<=30)return .72;
@@ -109,7 +159,10 @@ function doTraining(p,t,mult0,fatMul){
   p.trainCount+=(typeof weekly==='function'&&weekly())?ACT_WEEK_SCALE:1;  // 주간이면 4분의 1씩
   const teamDev=(p.pos==='pitcher'?TEAM(p.team).pdev:TEAM(p.team).dev)/10;
   const wk=(typeof weekly==='function'&&weekly())?ACT_WEEK_SCALE:1;   // 주간이면 횟수가 4배
-  const mult=(1+tEff(p,'train')+teamDev)*ageCurve(p)*(p.cond>=3?1.08:p.cond<=1?.85:1)*mult0*TRAIN_SCALE*wk;
+  const ae=ageEff(p);   // v3.1 — 젊으면 성장 크고 피로 크다 / 나이 들면 반대 (요구 2)
+  const sx=clamp(1-(p.stress||0)*.004,.7,1);   // 스트레스가 높으면 훈련이 몸에 안 붙는다
+  const mult=(1+tEff(p,'train')+teamDev)*ageCurve(p)*(p.cond>=3?1.08:p.cond<=1?.85:1)
+             *mult0*TRAIN_SCALE*wk*ae.gain*sx;
   if(t.rest){
     const r=1+tEff(p,'rest');
     p.fatigue=clamp(p.fatigue+t.fatigue*r,0,100);
@@ -126,7 +179,7 @@ function doTraining(p,t,mult0,fatMul){
       p.st[k]=clamp(round(p.st[k]+g,1),1,100);
       changes.push(`${SLABEL[k]} ${g>0?'+':''}${round(g,1)}`);
     }
-    p.fatigue=clamp(p.fatigue+t.fatigue*(1+tEff(p,'staminaCost'))*fatMul,0,100);
+    p.fatigue=clamp(p.fatigue+(t.fatigue*ae.fat+ae.fatAdd*wk)*(1+tEff(p,'staminaCost'))*fatMul,0,100);
     /* 성향 변화도 훈련 횟수에 비례한다 — 주간이면 회당 1/4 (연습벌레 조건 인플레 방지) */
     if(t.tend){const o={};for(const k in t.tend)o[k]=t.tend[k]*wk;tend(p,o);}
     if(t.risk)p.injRisk=(p.injRisk||0)+t.risk*.1;
@@ -135,6 +188,41 @@ function doTraining(p,t,mult0,fatMul){
   }
   updateCond(p);
   return log;
+}
+/* v3.1 (요구 13) — 훈련 미리보기.
+   doTraining() 과 같은 계수를 써야 "표시값 = 실제 변화" 가 성립한다.
+   식이 바뀌면 이 함수도 같이 바꿔야 한다. */
+function trainMult(p,mult0){
+  const teamDev=(p.pos==='pitcher'?TEAM(p.team).pdev:TEAM(p.team).dev)/10;
+  const wk=(typeof weekly==='function'&&weekly())?ACT_WEEK_SCALE:1;
+  const sx=clamp(1-(p.stress||0)*.004,.7,1);
+  return (1+tEff(p,'train')+teamDev)*ageCurve(p)*(p.cond>=3?1.08:p.cond<=1?.85:1)
+         *(mult0||1)*TRAIN_SCALE*wk*ageEff(p).gain*sx;
+}
+function trainPreview(p,t,mult0,fatMul){
+  const mult=trainMult(p,mult0), ae=ageEff(p);
+  const wk=(typeof weekly==='function'&&weekly())?ACT_WEEK_SCALE:1;
+  const rows=[];
+  for(const k in t.up){
+    if(p.st[k]===undefined)continue;
+    let g=t.up[k]*mult;
+    if(g>0)g*=clamp(potRoom(p,k),p.st[k]>=p.pot?0:.06,1.25);
+    if(Math.abs(g)<0.1)continue;
+    rows.push({k,label:SLABEL[k],v:g});
+  }
+  const fat=(t.fatigue*ae.fat+ae.fatAdd*wk)*(1+tEff(p,'staminaCost'))*(fatMul===undefined?1:fatMul);
+  return {rows,fat};
+}
+/* 화면 표기 — 소수는 반올림해서 보여주되 0이 되면 '소폭' */
+function numTxt(v){
+  const r=Math.round(v);
+  if(r===0)return (v>0?'+':'−')+'소폭';
+  return (r>0?'+':'−')+Math.abs(r);
+}
+function previewTxt(pv){
+  const a=pv.rows.map(r=>`${r.label} ${numTxt(r.v)}`);
+  if(Math.round(pv.fat))a.push(`피로 ${numTxt(pv.fat)}`);
+  return a.join(' · ')||'큰 변화 없음';
 }
 function updateCond(p){
   let c=2;
@@ -187,6 +275,13 @@ function newSeason(p){
   p.lv=decideLevel(p);                // ← 안에서 syncPlayerEntry + assignRoles 를 돈다
   const teamStr=(L?teamRating(p.team):62)+R.f(-1.5,1.5)+(p.teamBoost||0)*.6+tEff(p,'teamB')*.5;
   if(p.lv!=='2군'&&!p.debutYear){p.debutYear=p.year;p.timeline.push({y:p.year,t:'1군 데뷔'});}
+  /* 시즌 시작 시점의 능력치를 남긴다 — 성장 그래프의 데이터 (요구 7) */
+  p.stHist=p.stHist||[];
+  if(!p.stHist.some(h=>h.year===p.year)){
+    const snap={year:p.year,age:p.age,ovr:ovr(p)};
+    POS[p.pos].keys.forEach(k=>snap[k]=Math.round(p.st[k]));
+    p.stHist.push(snap);
+  }
   p.season={year:p.year,age:p.age,team:p.team,lv:p.lv,
     g:0,pa:0,ab:0,h:0,hr:0,rbi:0,r:0,bb:0,so:0,sb:0,d2:0,avg:0,ops:0,
     ip:0,w:0,l:0,sv:0,era:0,k:0,er:0,bb9:0,
@@ -379,7 +474,8 @@ function simRival(p){
 }
 function awardsPhase(p){
   const s=p.season,got=[];
-  const entry={s,name:p.name,pos:p.pos,team:p.team,rookie:p.year===p.debutYear,ai:0,me:1};
+  const rookieWindow=p.debutYear&&(p.year-p.debutYear)<=1&&p.seasonsPlayed<=2;
+  const entry={s,name:p.name,pos:p.pos,team:p.team,rookie:rookieWindow,ai:0,me:1};
   const lead=leagueAwards(entry);
   const mine=e=>e&&e.me;
   if(p.pos==='pitcher'){
@@ -395,7 +491,8 @@ function awardsPhase(p){
   if(lead.allstars.some(e=>e.me)){p.awards.allstar++;got.push('올스타');}
   if(lead.gg[p.pos]&&lead.gg[p.pos].me){p.awards.gg++;got.push('골든글러브');}
   if(mine(lead.mvp)){p.awards.mvp++;got.push('정규시즌 MVP');p.fame+=15;p.timeline.push({y:p.year,t:'정규시즌 MVP'});}
-  if(mine(lead.rookie)&&p.year===p.debutYear&&p.seasonsPlayed<=2){p.awards.rookie++;got.push('신인왕');p.timeline.push({y:p.year,t:'신인왕'});}
+  if(mine(lead.rookie)&&rookieWindow){p.awards.rookie++;got.push('신인왕');
+    p.timeline.push({y:p.year,m:11,t:'신인왕'});}
   ['홈런왕','다승왕','도루왕','탈삼진왕','타율 1위'].forEach(g=>{
     if(got.includes(g))p.timeline.push({y:p.year,t:g});});
   updateRecords(lead.ents);
@@ -541,6 +638,11 @@ function retireCheck(p){
   if(p.age>=36&&o<58)return true;
   if(p.age>=34&&o<52)return true;
   if(p.age>=31&&p.season.war<0.2&&p.injuries.length>=3)return true;
+  /* 큰 부상이 반복되면 전성기 전에도 몸이 먼저 그만둔다 */
+  const big=p.injuries.filter(x=>x.days>=90).length;
+  if(big>=2&&p.age>=27)return true;
+  if(big>=3)return true;
+  if(p.injuries.length>=6&&p.age>=28&&p.season.war<1.5)return true;
   /* v3.0 — 1군에 한 번도 자리잡지 못한 채 나이만 먹으면 구단이 먼저 정리한다
      (요구 35 "유망주 실패"). 단, 1군 기록이 쌓인 선수에게는 적용하지 않는다. */
   p.farmYears=(p.career.seasons||[]).filter(s=>s.lv==='2군').length;
@@ -643,7 +745,11 @@ function snapStats(p){
 function statDiff(p,b){
   const stats=[];
   POS[p.pos].keys.forEach(k=>{
-    if(Math.abs(p.st[k]-b[k])>=.05)stats.push({k,from:b[k],to:p.st[k],d:round(p.st[k]-b[k],1)});
+    const f=Math.round(b[k]), t=Math.round(p.st[k]);
+    /* 화면은 정수로 찍는다. "53 → 53 ▲ +0.1" 처럼 표시와 증감이 어긋나 보이면 안 되므로
+       반올림했을 때 실제로 숫자가 바뀐 항목만 보여준다.
+       소수점 아래 성장은 사라지는 게 아니라 p.st 에 그대로 쌓여 다음에 넘어간다. */
+    if(t!==f)stats.push({k,from:f,to:t,d:t-f});
   });
   return {stats,fat:Math.round(p.fatigue-b.__fat),cond:p.cond-b.__cond};
 }
@@ -656,7 +762,7 @@ function diffHtml(d){
       <span class="nm">${SLABEL[s.k]}</span>
       <span class="from">${Math.round(s.from)}</span><span class="dim">→</span>
       <span class="to">${Math.round(s.to)}</span>
-      <span class="delta">${s.d>0?'▲ +':'▼ '}${round(s.d,1)}</span>
+      <span class="delta">${s.d>0?`▲ +${s.d}`:`▼ ${Math.abs(s.d)}`}</span>
       <span class="mini"><i style="width:${lo}%"></i>${s.d>0?`<u style="left:${lo}%;width:${hi-lo}%"></u>`:''}</span>
     </div>`;
   }).join('');
@@ -791,6 +897,52 @@ function lifeHighlights(p){
 /* ==========================================================================
    [31] ENGINE v2.1 — 리그 뉴스 피드
    ========================================================================== */
+/* 특성 + 그 해 성적을 엮어 기사 한 줄을 만든다 (요구 9).
+   같은 성적이라도 [강심장]과 [새가슴]은 다르게 쓰인다. */
+const TRAIT_NEWS=[
+  {t:'강심장',  when:p=>p.post.bigHits>=2, tag:'평가',
+   line:p=>`큰 경기에서 강한 ${p.name}, 포스트시즌에서도 맹활약`},
+  {t:'새가슴',  when:p=>p.post.fail>=2, tag:'논란',
+   line:p=>`중요한 순간마다 침묵… ${p.name}의 새가슴 논란`},
+  {t:'철인',    when:p=>p.season&&p.season.g>=130, tag:'기록',
+   line:p=>`${p.name}, 올 시즌 ${p.season.g}경기 출장 — "저 선수는 빠지질 않는다"`},
+  {t:'유리몸',  when:p=>p.injuries.some(x=>x.y===p.year), tag:'우려',
+   line:p=>`또 이탈한 ${p.name}, 올해만 ${p.injuries.filter(x=>x.y===p.year).length}번째`},
+  {t:'슈퍼스타',when:p=>p.fanRating>=70, tag:'화제',
+   line:p=>`${p.name} 유니폼 판매량 구단 1위 — 경기장 밖에서도 주인공`},
+  {t:'국민스타',when:()=>true, tag:'화제',
+   line:p=>`야구를 안 보는 사람도 ${p.name}의 이름은 안다`},
+  {t:'카리스마',when:p=>p.flags.includes('captain'), tag:'평가',
+   line:p=>`"${p.name}이 들어오면 라커룸 공기가 달라진다" — 동료들의 증언`},
+  {t:'악동',    when:p=>true, tag:'논란',
+   line:p=>`${p.name}, 이번에도 경기 외적으로 화제`},
+  {t:'연습벌레',when:p=>p.trainCount>=20, tag:'미담',
+   line:p=>`불 꺼진 훈련장에 늘 한 사람 — ${p.name}`},
+  {t:'대기만성',when:p=>p.age>=31&&p.season&&p.season.war>=3, tag:'평가',
+   line:p=>`${p.age}세 ${p.name}, 전성기는 지금부터`}
+];
+function traitNews(p){
+  const out=[];
+  TRAIT_NEWS.forEach(r=>{
+    if(!p.traits.includes(r.t))return;
+    try{ if(!r.when(p))return; }catch(e){ return; }
+    if(R.c(.55))out.push({tag:r.tag,text:r.line(p)});
+  });
+  /* 특성이 없어도 최근 흐름은 기사가 된다 */
+  const s=p.season;
+  if(s&&s.g>=40&&p.lv!=='2군'){
+    if(p.pos!=='pitcher'&&s.ab>=120){
+      const avg=s.h/s.ab;
+      if(avg<=.215)out.push({tag:'부진',text:`타율 ${avg3(avg)}… ${p.name}의 부진이 길어지고 있다`});
+      else if(avg>=.330)out.push({tag:'활약',text:`${p.name}, 타율 ${avg3(avg)}로 타격 상위권 질주`});
+    }else if(p.pos==='pitcher'&&s.ip>=60){
+      const era=s.er*9/s.ip;
+      if(era>=5.5)out.push({tag:'부진',text:`평균자책 ${round(era,2)}… ${p.name}, 보직 조정 가능성`});
+      else if(era<=2.6)out.push({tag:'활약',text:`${p.name}, 평균자책 ${round(era,2)} — 리그 최정상급 투구`});
+    }
+  }
+  return out.slice(0,2);
+}
 function genNews(p){
   const n=[],add=(tag,text,me)=>n.push({tag,text,me:me?1:0,y:L.year});
   const ones=L.players.filter(a=>a.lv==='1군'&&a.s&&a.s.g);
@@ -810,6 +962,8 @@ function genNews(p){
   if(s&&s.g)add('당신',p.pos==='pitcher'
     ? `${p.name}, ${s.w}승 ${s.l}패 평균자책 ${s.ip?round(s.er*9/s.ip,2):'-'}`
     : `${p.name}, 타율 ${s.ab?avg3(s.h/s.ab):'-'} ${s.hr}홈런 ${s.rbi}타점`,1);
+  /* v3.1 (요구 9) — 특성이 기사 논조를 바꾼다 */
+  traitNews(p).forEach(t=>add(t.tag,t.text,1));
   // 역사적 사건 (리그 전체)
   if(R.c(.35)){
     const t=R.pick(TEAMS);
@@ -846,6 +1000,8 @@ function wonText(v){
   return v.toLocaleString('ko-KR')+'만원';
 }
 /* 시장가치 — 성적·나이·잠재력·인기가 값을 만든다 */
+/* 포지션 희소성 — 포수는 대체가 어렵고, 야수는 흔하다 (요구 5) */
+const POS_SCARCITY={catcher:1.18, pitcher:1.06, batter:1.00};
 function marketValue(p){
   const o=ovr(p), war=p.tot.war, best=p.bestWar||0;
   /* 목표 곡선 — 19세 유망주 3천만 / 23세 주전 1.2억 / 27세 스타 7억 / 30세 FA 최대어 15억 */
@@ -856,11 +1012,20 @@ function marketValue(p){
     + p.fanRating*26 + p.fame*34
     + p.awards.mvp*22000 + p.awards.allstar*2600 + p.awards.gg*1800
     + p.awards.champ*2200 + p.nat.gold*3000;
-  v*=1+clamp(((p.rel.front||50)-50)*.0035,-.12,.12);  // 프런트와의 관계가 평가에 묻어난다
-  if(p.age>=31)v*=clamp(1-(p.age-30)*.11,.25,1);   // 나이 할인
-  if(p.age<=22)v*=.55+ (p.pot-o)*.012;             // 유망주 프리미엄은 제한적
+  /* v3.1 (요구 5) — 능력치만으로 값이 정해지지 않는다 */
+  const last3=(p.career.seasons||[]).slice(-3);
+  if(last3.length){                                  // 최근 3년 성적이 현재 가치를 좌우한다
+    const recent=last3.reduce((s,x)=>s+(x.war||0),0)/last3.length;
+    v*=clamp(.72+recent*.11,.6,1.5);
+  }
+  v*=POS_SCARCITY[p.pos]||1;                         // 포지션 희소성 (포수가 귀하다)
+  v*=1+clamp(p.nat.caps*.03+p.nat.gold*.05,0,.22);   // 국가대표 경력
+  v*=1+clamp(((p.rel.front||50)-50)*.0035,-.12,.12); // 프런트와의 관계가 평가에 묻어난다
+  if(p.age>=31)v*=clamp(1-(p.age-30)*.11,.25,1);     // 나이 할인
+  if(p.age<=22)v*=.55+ (p.pot-o)*.012;               // 유망주 프리미엄은 제한적
   if(p.lv==='2군')v*=.35;
-  if(p.injuries.length>=4)v*=.85;
+  v*=clamp(1-p.injuries.length*.035,.72,1);          // 부상 이력이 쌓이면 깎인다
+  if(p.injuries.some(x=>x.days>=90))v*=.92;          // 큰 부상 경력
   return Math.max(2700,Math.round(v/100)*100);
 }
 /* 매년 재계약 — FA 전에는 구단이 값을 매긴다 */

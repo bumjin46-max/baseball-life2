@@ -30,16 +30,16 @@ EV({id:'E_SENIOR_SLUMP', once:1, w:6, when:p=>p.year>=2027,
  title:'부진한 선배',
  text:p=>`${p.vet}이 두 달째 ${POSV[p.vetPos||p.pos].feel}을 찾지 못하고 있다. 2군행 이야기가 나온다.\n라커룸에서 그 ${POS_LABEL[p.vetPos||p.pos]} 선배가 혼자 장비를 정리하고 있다.`,
  choices:[
-  {t:'같이 남아 야간 훈련을 한다.', s:'인간관계 ↑↑ 체력 ↓', run:p=>{rel(p,'vet',25);tend(p,{social:8,leadership:6});p.fatigue+=14;flag(p,'helpedVeteran');return['그는 아무 말도 하지 않았지만, 오래 기억할 것이다.'];}},
+  {t:'같이 남아 야간 훈련을 한다.', s:'인간관계 ↑ 체력 ↓', run:p=>{rel(p,'vet',25);tend(p,{social:8,leadership:6});p.fatigue+=14;flag(p,'helpedVeteran');return['그는 아무 말도 하지 않았지만, 오래 기억할 것이다.'];}},
   {t:'내 훈련에 집중한다.', s:'개인 능력 ↑ 이기심 ↑', run:p=>{grow(p,{[W(p).key]:2});tend(p,{selfish:7});return['내 할 일을 했다.'];}},
-  {t:'"선배 자리, 제가 채우겠습니다."', s:'승부욕 ↑↑ 관계 ↓↓', run:p=>{tend(p,{competitive:12,selfish:10,social:-10});rel(p,'vet',-25);flag(p,'troubleMaker');return['말이 라커룸에 퍼졌다.'];}}
+  {t:'"선배 자리, 제가 채우겠습니다."', s:'승부욕 ↑ 관계 ↓', run:p=>{tend(p,{competitive:12,selfish:10,social:-10});rel(p,'vet',-25);flag(p,'troubleMaker');return['말이 라커룸에 퍼졌다.'];}}
  ]}),
 EV({id:'E_MEDIA', w:5, when:p=>p.year>=2027&&p.fame>=25,
  title:'인터뷰 요청',
  text:p=>`방송사에서 단독 인터뷰를 요청해 왔다.\n"솔직하게 말해주셔도 됩니다. 요즘 팀 분위기 어떻습니까?"`,
  choices:[
   {t:'팀에 대해 좋은 말만 한다.', s:'팀 관계 ↑ 화제성 ↓', run:p=>{tend(p,{loyalty:8});rel(p,'manager',6);return['무난한 기사가 나갔다.'];}},
-  {t:'솔직하게 문제를 말한다.', s:'화제성 ↑↑ 팀 관계 ↓↓', run:p=>{tend(p,{star:12,selfish:6});rel(p,'manager',-14);p.fame+=8;flag(p,'troubleMaker');return['기사 제목에 그의 이름이 먼저 나왔다.'];}},
+  {t:'솔직하게 문제를 말한다.', s:'화제성 ↑ 팀 관계 ↓', run:p=>{tend(p,{star:12,selfish:6});rel(p,'manager',-14);p.fame+=8;flag(p,'troubleMaker');return['기사 제목에 그의 이름이 먼저 나왔다.'];}},
   {t:'자신의 목표를 크게 말한다.', s:'스타성 ↑ 부담 ↑', run:p=>{tend(p,{star:10,competitive:6});p.fame+=6;p.pressure=(p.pressure||0)+1;return[`"올해 ${W(p).goal} 하겠습니다."`,'팬들이 그 말을 기억할 것이다.'];}}
  ]}),
 EV({id:'E_RIVAL_FIRST', once:1, w:8, when:p=>p.year>=2027,
@@ -47,14 +47,14 @@ EV({id:'E_RIVAL_FIRST', once:1, w:8, when:p=>p.year>=2027,
  text:p=>`${p.rival.name}이 당신보다 먼저 1군에 자리를 잡았다.\n오늘 그의 인터뷰가 스포츠 뉴스 첫 꼭지였다.`,
  choices:[
   {t:'먼저 연락해 축하한다.', s:'라이벌 우정 ↑', run:p=>{p.rival.bond+=25;tend(p,{social:6});return['"고맙다. 너도 금방 올라올 거야."'];}},
-  {t:'말없이 훈련장으로 간다.', s:'승부욕 ↑↑ 체력 ↓', run:p=>{tend(p,{competitive:12,diligence:6});p.fatigue+=12;p.rival.bond-=8;return['그날 밤 훈련장 불은 늦게 꺼졌다.'];}},
+  {t:'말없이 훈련장으로 간다.', s:'승부욕 ↑ 체력 ↓', run:p=>{tend(p,{competitive:12,diligence:6});p.fatigue+=12;p.rival.bond-=8;return['그날 밤 훈련장 불은 늦게 꺼졌다.'];}},
   {t:'신경 쓰지 않는다.', s:'멘탈 ↑', run:p=>{grow(p,{mental:2});return['남의 야구는 남의 야구다.'];}}
  ]}),
 EV({id:'E_FAN_LETTER', w:4, when:p=>p.year>=2028,
  title:'편지 한 통',
  text:p=>`구단을 통해 편지가 왔다.\n"아버지가 병원에 계신데, 선수님 경기를 보는 날만 웃으십니다."`,
  choices:[
-  {t:'병원을 직접 찾아간다.', s:'팬 평가 ↑↑ 체력 ↓', run:p=>{p.fanRating+=6;tend(p,{star:6,social:6});p.fatigue+=6;flag(p,'fanFavorite');return['기사도, 사진도 없었다. 그래도 알려졌다.'];}},
+  {t:'병원을 직접 찾아간다.', s:'팬 평가 ↑ 체력 ↓', run:p=>{p.fanRating+=6;tend(p,{star:6,social:6});p.fatigue+=6;flag(p,'fanFavorite');return['기사도, 사진도 없었다. 그래도 알려졌다.'];}},
   {t:'사인 유니폼과 답장을 보낸다.', s:'팬 평가 ↑', run:p=>{p.fanRating+=3;return['정성껏 답장을 썼다.'];}},
   {t:'읽고 서랍에 넣어둔다.', s:'멘탈 ↑', run:p=>{grow(p,{mental:1.5});return['그 문장을 오래 기억했다.'];}}
  ]}),
@@ -69,7 +69,7 @@ EV({id:'E_YOUNG', w:5, when:p=>p.age>=27,
  title:'후배가 찾아왔다',
  text:p=>`올해 입단한 신인이 조심스럽게 다가온다.\n"선배님… 저 지금 하나도 모르겠습니다."`,
  choices:[
-  {t:'시간을 내서 하나하나 알려준다.', s:'리더십 ↑↑ / 개인 훈련 ↓', run:p=>{tend(p,{leadership:12,social:8});p.fatigue+=8;flag(p,'mentor');return['그를 따르는 후배가 생겼다.'];}},
+  {t:'시간을 내서 하나하나 알려준다.', s:'리더십 ↑ / 개인 훈련 ↓', run:p=>{tend(p,{leadership:12,social:8});p.fatigue+=8;flag(p,'mentor');return['그를 따르는 후배가 생겼다.'];}},
   {t:'"직접 부딪혀봐. 그게 빨라."', s:'무변화', run:p=>{tend(p,{leadership:-3});return['틀린 말은 아니었다.'];}},
   {t:'감독에게 그를 추천한다.', s:'리더십 ↑ 감독 신뢰 ↑', run:p=>{tend(p,{leadership:7});rel(p,'manager',10);return['감독이 당신을 다시 봤다.'];}}
  ]}),
@@ -77,7 +77,7 @@ EV({id:'E_INJURY_TEMPT', w:5, when:p=>p.fatigue>=55,
  title:'몸이 보내는 신호',
  text:p=>`${W(p).bodypart}이 무겁다. 트레이너는 2주 휴식을 권한다.\n하지만 팀은 순위 싸움 중이고, 다음 주는 라이벌 팀과의 3연전이다.`,
  choices:[
-  {t:'참고 뛴다.', s:'팀 관계 ↑ / 부상 위험 ↑↑', run:p=>{rel(p,'manager',12);p.injRisk=(p.injRisk||0)+.25;tend(p,{competitive:6});flag(p,'playedHurt');return['이를 악물었다.'];}},
+  {t:'참고 뛴다.', s:'팀 관계 ↑ / 부상 위험 ↑', run:p=>{rel(p,'manager',12);p.injRisk=(p.injRisk||0)+.25;tend(p,{competitive:6});flag(p,'playedHurt');return['이를 악물었다.'];}},
   {t:'휴식을 받아들인다.', s:'체력 회복 / 출장 감소', run:p=>{p.fatigue-=30;p.missGames=(p.missGames||0)+12;return['몸을 지키는 것도 실력이다.'];}},
   {t:'주사를 맞고 출장한다.', s:'단기 능력 유지 / 장기 위험', run:p=>{p.injRisk=(p.injRisk||0)+.45;p.fatigue+=10;return['통증은 사라졌다. 문제도 사라진 건 아니었다.'];}}
  ]}),
@@ -85,7 +85,7 @@ EV({id:'E_MONEY', w:4, when:p=>p.year>=2030&&p.fame>=40,
  title:'광고 제안',
  text:p=>`대형 광고 제안이 들어왔다. 촬영은 시즌 중 이틀.`,
  choices:[
-  {t:'수락한다.', s:'스타성 ↑↑ 체력 ↓', run:p=>{tend(p,{star:14});p.fame+=10;p.fatigue+=12;p.fanRating+=2;return['그의 얼굴이 지하철역마다 붙었다.'];}},
+  {t:'수락한다.', s:'스타성 ↑ 체력 ↓', run:p=>{tend(p,{star:14});p.fame+=10;p.fatigue+=12;p.fanRating+=2;return['그의 얼굴이 지하철역마다 붙었다.'];}},
   {t:'시즌이 끝난 뒤로 미룬다.', s:'집중력 유지', run:p=>{tend(p,{diligence:6});p.fatigue-=4;return['"야구부터 하겠습니다."'];}},
   {t:'거절한다.', s:'성실성 ↑ 스타성 ↓', run:p=>{tend(p,{diligence:8,star:-6});return['광고사는 다른 선수를 찾았다.'];}}
  ]}),
@@ -94,22 +94,22 @@ EV({id:'E_SLUMP_DEEP', w:6, when:p=>p.cond<=1,
  text:p=>`한 달째 답이 없다. ${W(p).place}에 서는 것이 무섭다.\n${W(p).slumpLine}. 오늘도 경기 후 혼자 남았다.`,
  choices:[
   {t:'영상을 밤새 돌려본다.', s:'멘탈 ↑ 체력 ↓', run:p=>{grow(p,{mental:2.5});p.fatigue+=14;p.cond=Math.min(4,p.cond+1);return['새벽 3시에 원인을 찾았다.'];}},
-  {t:'며칠 야구를 잊는다.', s:'컨디션 ↑↑', run:p=>{p.fatigue-=26;p.cond=Math.min(4,p.cond+2);return['돌아온 날, 공이 다시 크게 보였다.'];}},
+  {t:'며칠 야구를 잊는다.', s:'컨디션 ↑', run:p=>{p.fatigue-=26;p.cond=Math.min(4,p.cond+2);return['돌아온 날, 공이 다시 크게 보였다.'];}},
   {t:'선배에게 털어놓는다.', s:'인간관계 ↑ 멘탈 ↑', run:p=>{rel(p,'vet',12);grow(p,{mental:2});p.cond=Math.min(4,p.cond+1);tend(p,{social:6});return['"나도 그랬어. 다 그래."'];}}
  ]}),
 EV({id:'E_CAPTAIN', once:1, w:10, when:p=>p.age>=28&&p.tend.leadership>=62&&!p.flags.includes('captain'),
  title:'주장 제안',
  text:p=>`구단이 내년 주장직을 제안했다.\n주장은 팀의 성적과 분위기를 함께 짊어지는 자리다.`,
  choices:[
-  {t:'받아들인다.', s:'리더십 ↑↑ 팀 ↑ / 개인 성장 ↓', run:p=>{flag(p,'captain');tend(p,{leadership:16,loyalty:10});p.teamBoost=(p.teamBoost||0)+3;return['그는 주장이 되었다.'];}},
+  {t:'받아들인다.', s:'리더십 ↑ 팀 ↑ / 개인 성장 ↓', run:p=>{flag(p,'captain');tend(p,{leadership:16,loyalty:10});p.teamBoost=(p.teamBoost||0)+3;return['그는 주장이 되었다.'];}},
   {t:'"제 야구에 집중하겠습니다."', s:'개인 성적 ↑', run:p=>{tend(p,{selfish:8});grow(p,p.pos==='pitcher'?{stuff:2}:{power:2});return['구단은 다른 선수를 선임했다.'];}}
  ]}),
 EV({id:'E_RIVAL_MVP', w:7, when:p=>p.year>=2032&&p.rival.war>=4,
  title:'경쟁',
  text:p=>`기자들이 묻는다.\n"올해 MVP는 ${p.rival.name} 선수와의 경쟁이라는 말이 많습니다."`,
  choices:[
-  {t:'"제가 더 잘하면 됩니다."', s:'승부욕 ↑↑', run:p=>{tend(p,{competitive:12});p.rival.bond-=6;p.clutchBonus=(p.clutchBonus||0)+3;return['그 말이 그대로 기사 제목이 되었다.'];}},
-  {t:'"좋은 선수와 같은 시대에 뛰어서 즐겁습니다."', s:'라이벌 우정 ↑↑ 팬 ↑', run:p=>{p.rival.bond+=20;p.fanRating+=3;tend(p,{star:6});return['그날 밤 라이벌에게서 문자가 왔다.'];}},
+  {t:'"제가 더 잘하면 됩니다."', s:'승부욕 ↑', run:p=>{tend(p,{competitive:12});p.rival.bond-=6;p.clutchBonus=(p.clutchBonus||0)+3;return['그 말이 그대로 기사 제목이 되었다.'];}},
+  {t:'"좋은 선수와 같은 시대에 뛰어서 즐겁습니다."', s:'라이벌 우정 ↑ 팬 ↑', run:p=>{p.rival.bond+=20;p.fanRating+=3;tend(p,{star:6});return['그날 밤 라이벌에게서 문자가 왔다.'];}},
   {t:'"관심 없습니다."', s:'화제성 ↓ 멘탈 ↑', run:p=>{grow(p,{mental:2});p.rival.bond-=3;return['짧은 기사만 나갔다.'];}}
  ]}),
 EV({id:'E_TRADE_RUMOR', w:5, when:p=>p.year>=2030&&p.rel.manager<40,
@@ -188,12 +188,12 @@ EV({id:'CB_BOOING',once:1,w:11,when:p=>yearsSince(p,'facedBooing')>=4&&p.fanRati
  title:'그때 그 관중석',
  text:p=>`${flagYear(p,'facedBooing')}년, 이 자리에서 야유를 들었다.\n오늘은 같은 자리에서 그의 응원가가 나온다.\n\n${G.cal.year-flagYear(p,'facedBooing')}년이 걸렸다.`,
  choices:[
-  {t:'모자를 벗어 인사한다',s:'팬 ↑↑ · 멘탈 ↑',run:p=>{
+  {t:'모자를 벗어 인사한다',s:'팬 ↑ · 멘탈 ↑',run:p=>{
     rel(p,'fan',14);p.fanRating=clamp(p.fanRating+8,0,100);grow(p,{mental:2});
     p.stress=clamp((p.stress||20)-12,0,100);flag(p,'wonThemBack');
     p.timeline.push({y:G.cal.year,m:G.cal.month,t:'야유를 응원가로 바꾸다'});
     return['그날의 소리와 오늘의 소리가 겹쳐 들렸다.'];}},
-  {t:'아무 일 없던 것처럼 들어간다',s:'멘탈 ↑↑',run:p=>{
+  {t:'아무 일 없던 것처럼 들어간다',s:'멘탈 ↑',run:p=>{
     grow(p,{mental:3});tend(p,{patience:6});
     return['잊은 척하는 것도 능력이다.'];}}
  ]}),
@@ -203,7 +203,7 @@ EV({id:'CB_BALL',once:1,w:10,pos:'pitcher',when:p=>yearsSince(p,'tookTheBall')>=
  title:'그 손',
  text:p=>`후배 투수가 회의실에서 손을 들었다.\n${flagYear(p,'tookTheBall')}년의 나와 같은 표정이었다.`,
  choices:[
-  {t:'"내가 대신 던진다."',s:'팀·후배 관계 ↑↑ / 피로 ↑↑',run:p=>{
+  {t:'"내가 대신 던진다."',s:'팀·후배 관계 ↑ / 피로 ↑',run:p=>{
     rel(p,'team',12);rel(p,'rookie',14);p.fatigue=clamp(p.fatigue+14,0,100);
     tend(p,{leadership:8});flag(p,'mentoredRookie');flag(p,'teamFace');
     return['후배는 아무 말도 못 했다.','이제 이 팀에서 그 손은 내 것이다.'];}},
@@ -218,7 +218,7 @@ EV({id:'CB_CAPTAIN',once:1,w:12,when:p=>!p.flags.includes('captain')&&p.age>=28&
  title:'주장 완장',
  text:p=>`감독이 완장을 책상 위에 올려놓는다.\n\n"${flagYear(p,'mentoredRookie')}년부터 애들이 너한테 먼저 가더라. 나한테 말고."`,
  choices:[
-  {t:'완장을 받는다',s:'리더십 ↑↑ · 팀 전체 상승 / 스트레스 ↑↑',run:p=>{
+  {t:'완장을 받는다',s:'리더십 ↑ · 팀 전체 상승 / 스트레스 ↑',run:p=>{
     flag(p,'captain');rel(p,'captain',25);rel(p,'team',12);rel(p,'manager',8);
     tend(p,{leadership:12,selfish:-6});p.teamBoost=(p.teamBoost||0)+2;
     p.stress=clamp((p.stress||20)+14,0,100);
@@ -250,10 +250,10 @@ EV({id:'CB_REFUSED',once:1,w:9,when:p=>yearsSince(p,'refusedTrade')>=4,
  title:'가지 않은 길',
  text:p=>`${flagYear(p,'refusedTrade')}년에 나를 원했던 그 팀이 올해 우승했다.\n중계 화면에 낯익은 유니폼이 비친다.`,
  choices:[
-  {t:'"후회는 없습니다."',s:'충성도 ↑↑ 멘탈 ↑',run:p=>{
+  {t:'"후회는 없습니다."',s:'충성도 ↑ 멘탈 ↑',run:p=>{
     tend(p,{loyalty:12});grow(p,{mental:2});rel(p,'fan',8);flag(p,'noRegret');
     return['말은 그렇게 했다.'];}},
-  {t:'그날의 선택을 곱씹는다',s:'스트레스 ↑ 승부욕 ↑↑',run:p=>{
+  {t:'그날의 선택을 곱씹는다',s:'스트레스 ↑ 승부욕 ↑',run:p=>{
     p.stress=clamp((p.stress||20)+12,0,100);tend(p,{competitive:12});p.clutchBonus+=4;
     flag(p,'ifOnly');
     return['다음 시즌, 그는 다른 사람처럼 뛰었다.'];}}
@@ -264,7 +264,7 @@ EV({id:'CB_SPOKE',once:1,w:8,when:p=>yearsSince(p,'spokeUp')>=4,
  title:'그 건의서',
  text:p=>`새 훈련 시설이 문을 열었다.\n입구 안내문에 ${flagYear(p,'spokeUp')}년의 선수단 건의가 출발점이었다고 적혀 있다.`,
  choices:[
-  {t:'후배들에게 넘긴다',s:'후배 ↑↑ 리더십 ↑',run:p=>{
+  {t:'후배들에게 넘긴다',s:'후배 ↑ 리더십 ↑',run:p=>{
     rel(p,'rookie',14);rel(p,'team',8);tend(p,{leadership:8,selfish:-4});
     flag(p,'mentoredRookie');
     return['"형들 때는 없었어요?" "없었지."'];}},
@@ -278,7 +278,7 @@ EV({id:'CB_CONFLICT',once:1,w:5,when:p=>p.age>=27&&yearsSince(p,'managerConflict
  title:'그 감독',
  text:p=>`${flagYear(p,'managerConflict')}년에 등을 돌렸던 감독이 경질됐다.\n마지막 인사 자리에서 그가 이쪽을 본다.`,
  choices:[
-  {t:'먼저 손을 내민다',s:'멘탈 ↑↑ · 다음 감독과의 관계 ↑',run:p=>{
+  {t:'먼저 손을 내민다',s:'멘탈 ↑ · 다음 감독과의 관계 ↑',run:p=>{
     grow(p,{mental:2.5});rel(p,'manager',20);tend(p,{social:6,selfish:-4});
     flag(p,'madeAmends');
     return['"그때는 제가 어렸습니다."','그는 오래 악수를 놓지 않았다.'];}},
@@ -296,7 +296,7 @@ EV({id:'CB_TROUBLE',once:1,w:9,when:p=>yearsSince(p,'troubleMaker')>=5&&p.age>=2
     rel(p,'team',12);rel(p,'manager',10);rel(p,'front',10);rel(p,'vet',8);
     tend(p,{selfish:-10,social:8});flag(p,'changedMan');
     return['라커룸에서 제일 먼저 나가는 사람이 됐다.'];}},
-  {t:'"실력으로 말하겠습니다."',s:'승부욕 ↑↑ 시장가치 ↓',run:p=>{
+  {t:'"실력으로 말하겠습니다."',s:'승부욕 ↑ 시장가치 ↓',run:p=>{
     tend(p,{competitive:12,selfish:4});p.clutchBonus+=3;rel(p,'front',-8);
     return['숫자만 남기면 된다고 생각했다.'];}}
  ]}),
@@ -308,7 +308,7 @@ EV({id:'CB_NUMBER',once:1,w:10,when:p=>p.teamsPlayed.length<=1&&p.tot.war>=30&&
  text:p=>{const y=flagYear(p,'wantsNumberRetired');
    return `${y?`${y}년에 올려다봤던 그 담장.`:`외야 담장에 걸린 번호들.`}\n구단이 조용히 의사를 물어왔다. "은퇴하시면, 저 자리요."`;},
  choices:[
-  {t:'"끝까지 여기서 하겠습니다."',s:'충성도 ↑↑ 팬 ↑↑ 시장가치 ↓',run:p=>{
+  {t:'"끝까지 여기서 하겠습니다."',s:'충성도 ↑ 팬 ↑ 시장가치 ↓',run:p=>{
     tend(p,{loyalty:20});rel(p,'fan',16);rel(p,'front',12);
     p.fanRating=clamp(p.fanRating+10,0,100);
     flag(p,'franchiseStar');flag(p,'numberPromised');
@@ -324,13 +324,13 @@ EV({id:'CB_BATTERY',once:1,w:10,pos:'catcher',when:p=>yearsSince(p,'aceBattery')
  title:'마지막 등판',
  text:p=>`${flagYear(p,'aceBattery')}년부터 함께 던졌던 그 투수가 은퇴를 발표했다.\n"마지막 경기, 네가 받아줘."`,
  choices:[
-  {t:'끝까지 받는다',s:'리드 ↑↑ 팬 ↑ 팀 ↑↑',run:p=>{
+  {t:'끝까지 받는다',s:'리드 ↑ 팬 ↑ 팀 ↑',run:p=>{
     grow(p,{lead:3,catching:1.5});rel(p,'team',16);rel(p,'fan',10);
     p.fanRating=clamp(p.fanRating+6,0,100);
     p.timeline.push({y:G.cal.year,m:G.cal.month,t:'에이스의 마지막 배터리'});
     flag(p,'lastBattery');
     return['9회 마지막 공을 받고, 마운드까지 걸어 올라갔다.'];}},
-  {t:'후배에게 양보한다',s:'후배 ↑↑ 리더십 ↑',run:p=>{
+  {t:'후배에게 양보한다',s:'후배 ↑ 리더십 ↑',run:p=>{
     rel(p,'rookie',16);tend(p,{leadership:8,selfish:-5});flag(p,'mentoredRookie');
     return['"저 자리는 다음 사람 것이어야죠."'];}}
  ]}),
@@ -340,7 +340,7 @@ EV({id:'CB_FAMILY',once:1,w:8,when:p=>yearsSince(p,'family')>=5&&p.age>=30,
  title:'관중석의 한 자리',
  text:p=>`아이가 처음으로 경기장에 왔다.\n${flagYear(p,'family')}년에는 없던 얼굴이다.`,
  choices:[
-  {t:'그 자리를 보고 뛴다',s:'멘탈 ↑↑ 스트레스 ↓↓ 클러치 ↑',run:p=>{
+  {t:'그 자리를 보고 뛴다',s:'멘탈 ↑ 스트레스 ↓ 클러치 ↑',run:p=>{
     grow(p,{mental:3});p.stress=clamp((p.stress||20)-18,0,100);
     p.clutchBonus+=4;tend(p,{patience:6});flag(p,'playingForSomeone');
     return['3회에 한 번, 7회에 한 번 그쪽을 봤다.'];}},
@@ -439,7 +439,7 @@ EV({id:'TE_SEOUL_1',team:'seoul',w:7,when:p=>p.year>=2027,
  title:'간판스타의 눈빛',
  text:p=>`구단의 간판${W(p).job}가 당신의 ${W(p).drill}을 한참 지켜본다.\n\n"요즘 네 얘기 많이 들린다."\n\n칭찬인지 경고인지 알 수 없는 말투였다.`,
  choices:[
-  {t:'"자리 뺏을 생각으로 하고 있습니다."',s:'승부욕 ↑↑ 팀 관계 ↓',run:p=>{tend(p,{competitive:12,selfish:5});rel(p,'team',-8);p.clutchBonus+=2;return['그가 웃었다. 눈은 웃지 않았다.'];}},
+  {t:'"자리 뺏을 생각으로 하고 있습니다."',s:'승부욕 ↑ 팀 관계 ↓',run:p=>{tend(p,{competitive:12,selfish:5});rel(p,'team',-8);p.clutchBonus+=2;return['그가 웃었다. 눈은 웃지 않았다.'];}},
   {t:'"많이 배우고 있습니다."',s:'인간관계 ↑ 훈련 효과 ↑',run:p=>{tend(p,{social:8});rel(p,'vet',12);grow(p,{[W(p).key]:1.5});return['그날부터 그가 직접 조언을 해주기 시작했다.'];}}
  ]}),
 EV({id:'TE_SEOUL_2',team:'seoul',w:5,when:p=>p.year>=2029,
@@ -478,7 +478,7 @@ EV({id:'TE_DAEJEON_1',team:'daejeon',w:7,when:p=>p.age<=24,
  title:'실패해도 된다',
  text:p=>`감독이 말한다.\n\n"올해 성적은 신경 쓰지 마라. 네가 커야 우리 팀이 산다."\n\n1군 붙박이 출전을 보장받았다.`,
  choices:[
-  {t:'과감하게 부딪친다',s:'성장 ↑↑ 기록 불안정',run:p=>{grow(p,p.pos==='pitcher'?{velo:2,stuff:2}:{power:2,contact:1.5});tend(p,{aggression:8});return['실패해도 되는 시간은 길지 않다.'];}},
+  {t:'과감하게 부딪친다',s:'성장 ↑ 기록 불안정',run:p=>{grow(p,p.pos==='pitcher'?{velo:2,stuff:2}:{power:2,contact:1.5});tend(p,{aggression:8});return['실패해도 되는 시간은 길지 않다.'];}},
   {t:'안정적으로 시즌을 보낸다',s:'멘탈 ↑ 성장 ↓',run:p=>{grow(p,{mental:2.5});tend(p,{patience:8});return['무너지지 않는 것도 실력이다.'];}}
  ]}),
 /* 광주 타이탄스 — 승리 우선 */
@@ -494,8 +494,8 @@ EV({id:'TE_DAEGU_1',team:'daegu',w:7,when:p=>p.age<=26,
  title:'전통',
  text:p=>`고참들이 부른다.\n\n"우리 팀은 원래 이렇게 해왔다. 너도 이어가라."\n\n오래된 방식이었다. 효율적이지는 않았다.`,
  choices:[
-  {t:'전통을 따른다',s:'팀 관계 ↑↑ 성장 ↓',run:p=>{rel(p,'vet',18);rel(p,'team',12);tend(p,{loyalty:10});return['라커룸에서 그의 자리가 생겼다.'];}},
-  {t:'내 방식대로 한다',s:'성장 ↑ 팀 관계 ↓↓',run:p=>{grow(p,p.pos==='pitcher'?{control:2.5}:{contact:2.5});rel(p,'vet',-15);flag(p,'troubleMaker');return['고참들과 거리가 생겼다.'];}}
+  {t:'전통을 따른다',s:'팀 관계 ↑ 성장 ↓',run:p=>{rel(p,'vet',18);rel(p,'team',12);tend(p,{loyalty:10});return['라커룸에서 그의 자리가 생겼다.'];}},
+  {t:'내 방식대로 한다',s:'성장 ↑ 팀 관계 ↓',run:p=>{grow(p,p.pos==='pitcher'?{control:2.5}:{contact:2.5});rel(p,'vet',-15);flag(p,'troubleMaker');return['고참들과 거리가 생겼다.'];}}
  ]}),
 /* 수원 스톰 — 데이터 야구 */
 EV({id:'TE_SUWON_1',team:'suwon',w:7,when:p=>p.year>=2027,
@@ -510,7 +510,7 @@ EV({id:'TE_CHANGWON_1',team:'changwon',w:7,when:p=>p.seasonsPlayed>=4,
  title:'평생 이 유니폼',
  text:p=>`구단주가 직접 찾아왔다.\n\n"돈은 다른 팀만큼 못 준다. 대신 자네 등번호는 영구결번으로 남길 생각이다."`,
  choices:[
-  {t:'약속한다',s:'충성도 ↑↑ 팬 ↑',run:p=>{tend(p,{loyalty:20});p.fanRating=clamp(p.fanRating+7,0,100);flag(p,'franchiseStar');return['그 약속은 기록보다 오래 남을 것이다.'];}},
+  {t:'약속한다',s:'충성도 ↑ 팬 ↑',run:p=>{tend(p,{loyalty:20});p.fanRating=clamp(p.fanRating+7,0,100);flag(p,'franchiseStar');return['그 약속은 기록보다 오래 남을 것이다.'];}},
   {t:'대답을 미룬다',s:'변화 없음',run:p=>{tend(p,{loyalty:-4});return['"생각해 보겠습니다."'];}}
  ]}),
 /* 고양 크라운 — 키워서 보낸다 */
@@ -526,7 +526,7 @@ EV({id:'TE_SEONGNAM_1',team:'seongnam',w:7,when:p=>p.year>=2027,
  title:'또 리빌딩',
  text:p=>`구단이 베테랑들을 정리했다. 라커룸의 절반이 신인이다.\n당신이 어느새 고참 축에 든다.`,
  choices:[
-  {t:'어린 선수들을 이끈다',s:'리더십 ↑↑',run:p=>{tend(p,{leadership:14,social:6});flag(p,'mentor');return['그는 자기도 모르게 중심이 되어 있었다.'];}},
+  {t:'어린 선수들을 이끈다',s:'리더십 ↑',run:p=>{tend(p,{leadership:14,social:6});flag(p,'mentor');return['그는 자기도 모르게 중심이 되어 있었다.'];}},
   {t:'내 커리어를 먼저 생각한다',s:'개인 성적 ↑ 충성도 ↓',run:p=>{tend(p,{selfish:10,loyalty:-8});p.clutchBonus+=2;return['이 팀에서 보낼 시간이 아깝다.'];}}
  ]}),
 /* 문화 공용 */
@@ -590,7 +590,7 @@ EV({id:'TE_BUSAN_2',team:'busan',w:7,when:p=>p.lv!=='2군',
  title:'사직의 밤',
  text:p=>`3만 관중이 그의 이름을 부른다.\n${W(p).place}로 걸어 나가는 몇 초가 유난히 길다.`,
  choices:[
-  {t:'그 소리에 응답한다',s:'팬 ↑↑ 스트레스 ↑',run:p=>{
+  {t:'그 소리에 응답한다',s:'팬 ↑ 스트레스 ↑',run:p=>{
     rel(p,'fan',10);p.fanRating=clamp(p.fanRating+6,0,100);
     p.stress=clamp((p.stress||20)+8,0,100);p.clutchBonus+=3;tend(p,{star:6});
     return['그 소리를 오래 기억했다.'];}},
@@ -602,7 +602,7 @@ EV({id:'TE_BUSAN_3',team:'busan',w:6,when:p=>p.season&&p.season.war<1&&p.seasons
  title:'야유',
  text:p=>`홈에서 또 졌다. 3루 쪽에서 야유가 길게 이어진다.\n그중에 분명히 내 이름이 있었다.`,
  choices:[
-  {t:'모자를 벗고 인사한다',s:'팬 ↑ 스트레스 ↑↑',run:p=>{
+  {t:'모자를 벗고 인사한다',s:'팬 ↑ 스트레스 ↑',run:p=>{
     rel(p,'fan',12);p.stress=clamp((p.stress||20)+14,0,100);tend(p,{patience:6});
     flagAt(p,'facedBooing');
     return['야유가 조금씩 잦아들었다.','그날 밤은 오래 잠들지 못했다.'];}},
@@ -616,7 +616,7 @@ EV({id:'TE_INCHEON_3',team:'incheon',w:6,when:p=>p.pos==='catcher',pos:'catcher'
  title:'배터리',
  text:p=>`팀의 에이스가 따로 부른다.\n"다음 등판, 네가 받아라. 감독한테는 내가 말한다."`,
  choices:[
-  {t:'"믿어주셔서 감사합니다."',s:'리드 ↑↑ 출전 기회 ↑',run:p=>{
+  {t:'"믿어주셔서 감사합니다."',s:'리드 ↑ 출전 기회 ↑',run:p=>{
     grow(p,{lead:2.6,catching:1.2});rel(p,'team',10);rel(p,'manager',6);
     flagAt(p,'aceBattery');
     return['그날 경기, 사인을 한 번도 흔들지 않았다.'];}},
@@ -646,7 +646,7 @@ EV({id:'TE_GWANGJU_2',team:'gwangju',w:6,when:p=>p.lv!=='2군'&&p.season&&p.seas
  title:'우승 말고는',
  text:p=>`구단주가 라커룸에 들어왔다.\n"올해 우승 못 하면 여기 절반은 내년에 없다."\n\n농담이 아니었다.`,
  choices:[
-  {t:'"제가 끝내겠습니다."',s:'승부욕 ↑↑ 스트레스 ↑↑',run:p=>{
+  {t:'"제가 끝내겠습니다."',s:'승부욕 ↑ 스트레스 ↑',run:p=>{
     tend(p,{competitive:10});p.clutchBonus+=5;
     p.stress=clamp((p.stress||20)+16,0,100);rel(p,'front',8);
     return['말을 뱉고 나니 도망갈 곳이 없어졌다.'];}},
@@ -660,11 +660,11 @@ EV({id:'TE_DAEGU_2',team:'daegu',w:7,when:p=>p.age<=23,
  title:'고참의 방식',
  text:p=>`훈련 순서가 연차대로 정해져 있다.\n내 차례는 항상 마지막이고, 그때쯤이면 ${W(p).gear}도 사람도 지쳐 있다.`,
  choices:[
-  {t:'새벽에 혼자 나온다',s:'주 능력 ↑ 피로 ↑↑',run:p=>{
+  {t:'새벽에 혼자 나온다',s:'주 능력 ↑ 피로 ↑',run:p=>{
     grow(p,{[W(p).key]:1.8});p.fatigue=clamp(p.fatigue+14,0,100);
     tend(p,{diligence:9});rel(p,'vet',4);
     return['아무도 없는 훈련장의 소리를 알게 됐다.'];}},
-  {t:'순서를 기다리며 선배를 돕는다',s:'관계 ↑↑ 성장 ↓',run:p=>{
+  {t:'순서를 기다리며 선배를 돕는다',s:'관계 ↑ 성장 ↓',run:p=>{
     rel(p,'vet',12);rel(p,'captain',6);tend(p,{patience:6,social:4});
     flagAt(p,'helpedVeteran');
     return['공을 줍는 동안 배운 것도 있었다.'];}}
@@ -689,7 +689,7 @@ EV({id:'TE_CHANGWON_2',team:'changwon',w:6,when:p=>p.seasonsPlayed>=5,
  title:'영구결번의 무게',
  text:p=>`외야 담장에 걸린 번호들 앞에서 한참 서 있었다.\n프런트 직원이 지나가며 말한다. "저 자리, 아직 비어 있어요."`,
  choices:[
-  {t:'여기서 끝내겠다고 마음먹는다',s:'충성도 ↑↑ 팬 ↑',run:p=>{
+  {t:'여기서 끝내겠다고 마음먹는다',s:'충성도 ↑ 팬 ↑',run:p=>{
     tend(p,{loyalty:14});rel(p,'fan',8);rel(p,'front',6);
     flagAt(p,'wantsNumberRetired');
     return['말은 하지 않았지만 결심이 섰다.'];}},
@@ -745,7 +745,7 @@ EV({id:'TC_ATTACK_1',cul:'공격',w:6,when:p=>p.lv!=='2군'&&p.seasonsPlayed>=2,
   {t:'팀 색깔에 나를 맞춘다',s:'주 능력 ↑ 감독 ↑ / 다른 능력 정체',run:p=>{
     grow(p,{[W(p).key2]:2.2,mental:-0.4});rel(p,'manager',9);
     return['라인업에서 내 자리가 분명해졌다.'];}},
-  {t:'내 강점을 밀고 간다',s:'주 능력 ↑↑ 감독 ↓',run:p=>{
+  {t:'내 강점을 밀고 간다',s:'주 능력 ↑ 감독 ↓',run:p=>{
     grow(p,{[W(p).key]:2.4});rel(p,'manager',-7);tend(p,{selfish:5,competitive:4});
     return['벤치에서 뭐라 하든 내 방식이 있었다.'];}}
  ]}),
@@ -766,7 +766,7 @@ EV({id:'TC_PIT_1',cul:'투수',w:6,pos:'pitcher',when:p=>p.lv!=='2군',
  title:'투수진 회의',
  text:p=>`투수조 전원이 모였다.\n"이번 주 불펜 운용, 누가 하루 더 던질래."`,
  choices:[
-  {t:'손을 든다',s:'팀 관계 ↑↑ 피로 ↑↑ 부상 위험 ↑',run:p=>{
+  {t:'손을 든다',s:'팀 관계 ↑ 피로 ↑ 부상 위험 ↑',run:p=>{
     rel(p,'team',12);rel(p,'manager',8);p.fatigue=clamp(p.fatigue+16,0,100);
     p.injRisk=(p.injRisk||0)+.2;tend(p,{leadership:5,competitive:4});
     flagAt(p,'tookTheBall');
@@ -873,7 +873,7 @@ EV({id:'V_ROOKIE_HELP',w:6,when:p=>p.age>=26,
  text:p=>`2군에서 갓 올라온 후배가 따라붙는다.\n"선배님 루틴, 한 번만 보여주시면 안 됩니까."`,
  choices:[
   {t:'내 시간을 쪼개 가르친다',risk:'BALANCED',reveal:'FULL',outcomes:[
-    {p:.65,label:'후배 관계 ↑↑ 리더십 ↑',res:{rel:{rookie:18},tend:{leadership:10,social:6},flag:'mentor',
+    {p:.65,label:'후배 관계 ↑ 리더십 ↑',res:{rel:{rookie:18},tend:{leadership:10,social:6},flag:'mentor',
       text:'그 후배는 이 장면을 오래 기억할 것이다.'},bias:{leadership:.9}},
     {p:.35,label:'내 훈련 시간 손실',res:{rel:{rookie:10},fatigue:10,text:'내 것을 챙길 시간이 줄었다.'}}
   ]},
@@ -927,7 +927,7 @@ EV({id:'V_FANDAY',w:5,when:p=>p.fanRating>=55,
  text:p=>`줄이 길다. 예정 시간이 한참 지났는데도 끝이 보이지 않는다.`,
  choices:[
   {t:'끝까지 남아 전부 받아준다',risk:'BALANCED',reveal:'FULL',outcomes:[
-    {p:.75,label:'팬 평가 ↑↑',res:{fan:8,media:5,tend:{star:6},fatigue:10,flag:'fanFavorite',
+    {p:.75,label:'팬 평가 ↑',res:{fan:8,media:5,tend:{star:6},fatigue:10,flag:'fanFavorite',
       text:'마지막 팬까지 이름을 불러줬다.'}},
     {p:.25,label:'체력 소모만 남음',res:{fan:3,fatigue:16,text:'다음 날 몸이 무거웠다.'}}
   ]},
@@ -941,7 +941,7 @@ EV({id:'V_MENTOR_BACK',once:1,w:10,when:p=>p.year>=2032&&p.flags.includes('mento
  text:p=>`몇 년 전 당신에게 루틴을 배우던 후배가 이제 팀의 주전이 되었다.\n그가 신인들을 모아놓고 말한다.\n\n"이건 저 선배한테 배운 겁니다."`,
  choices:[
   {t:'함께 어린 선수들을 가르친다',risk:'BALANCED',reveal:'FULL',outcomes:[
-    {p:.80,label:'리더십 ↑↑ 팀 전체 상승',res:{tend:{leadership:14},rel:{rookie:20,coach:10},
+    {p:.80,label:'리더십 ↑ 팀 전체 상승',res:{tend:{leadership:14},rel:{rookie:20,coach:10},
       text:'라커룸의 공기가 달라졌다.'}},
     {p:.20,label:'내 훈련 시간 감소',res:{tend:{leadership:8},fatigue:8,text:'내 몸 챙길 시간은 줄었다.'}}
   ]},

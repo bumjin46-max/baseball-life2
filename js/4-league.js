@@ -253,7 +253,7 @@ function postseasonRun(){
 /* ── 시상 ── */
 function leagueAwards(playerEntry){
   const ents=L.players.filter(a=>isAi(a)&&!a.retired&&a.lv==='1군').map(a=>({a,s:a.s,name:a.name,pos:a.pos,
-    team:a.team,rookie:a.debut===L.year,ai:1}));
+    team:a.team,rookie:a.debut&&(L.year-a.debut)<=1,ai:1}));
   if(playerEntry)ents.push(playerEntry);
   const bats=ents.filter(e=>e.pos!=='pitcher'), pits=ents.filter(e=>e.pos==='pitcher');
   const best=(arr,f,min)=>arr.filter(e=>min?min(e):true).sort((x,y)=>f(y)-f(x))[0];
