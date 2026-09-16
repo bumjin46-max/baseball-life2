@@ -20,10 +20,37 @@ const round=(v,d)=>Math.round(v*10**d)/10**d;
 const avg3=v=>v.toFixed(3).replace(/^0/,'');
 
 const MEM={};
+/* v3.0 — 저장소.
+   기존 구현은 window.storage(비표준)만 보고 실패 시 MEM(메모리)으로 떨어졌다.
+   즉 일반 브라우저에서는 새로고침하면 세이브가 사라졌다. 모바일에서는 탭이
+   메모리에서 내려가기만 해도 날아간다. localStorage 를 실제 저장소로 쓴다.
+   3단 폴백: window.storage → localStorage → 메모리 */
+const STORE_NS='baseballLife:';
+function _ls(){ try{ const t='__t'; localStorage.setItem(t,'1'); localStorage.removeItem(t); return localStorage; }catch(e){ return null; } }
+const LS=_ls();
 const Store={
-  async get(k){ try{const r=await window.storage.get(k);return r?JSON.parse(r.value):(MEM[k]??null);}catch(e){return MEM[k]??null;} },
-  async set(k,v){ MEM[k]=v; try{await window.storage.set(k,JSON.stringify(v));}catch(e){} },
-  async del(k){ delete MEM[k]; try{await window.storage.delete(k);}catch(e){} }
+  async get(k){
+    try{ if(window.storage){const r=await window.storage.get(k); if(r)return JSON.parse(r.value);} }catch(e){}
+    try{ if(LS){const v=LS.getItem(STORE_NS+k); if(v!=null)return JSON.parse(v);} }catch(e){}
+    return MEM[k]??null;
+  },
+  async set(k,v){
+    MEM[k]=v;
+    const json=JSON.stringify(v);
+    try{ if(window.storage)await window.storage.set(k,json); }catch(e){}
+    try{ if(LS)LS.setItem(STORE_NS+k,json); }
+    catch(e){
+      /* 용량 초과 — 세이브가 제일 크다. 오래된 것부터 비우고 한 번 더 시도한다 */
+      try{ LS.removeItem(STORE_NS+'save_v1'); LS.setItem(STORE_NS+k,json); }
+      catch(e2){ if(!Store._warned){Store._warned=1;
+        console.warn('저장 공간이 부족합니다. 이번 세션에서만 기록이 유지됩니다.');} }
+    }
+  },
+  async del(k){
+    delete MEM[k];
+    try{ if(window.storage)await window.storage.delete(k); }catch(e){}
+    try{ if(LS)LS.removeItem(STORE_NS+k); }catch(e){}
+  }
 };
 
 /* ==========================================================================

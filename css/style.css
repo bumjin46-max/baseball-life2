@@ -285,7 +285,86 @@ tr.mine td{color:var(--lamp);background:rgba(245,196,81,.07)}
   .navbar button.on{color:var(--lamp)}
   .tabs{display:none}
 }
-@media(max-width:400px){ .traits{grid-template-columns:1fr} .board .bit{font-size:11.5px} }
+/* ══════════════════════════════════════════════════════════════════
+   v3.0 최종 — 모바일 최적화 (요구 32)
+   상단 날짜/상태 · 중앙 스크롤 · 하단 행동. 한 손으로 끝까지 플레이 가능하게.
+   ══════════════════════════════════════════════════════════════════ */
+
+/* 상태창 접기 — 세로 공간이 귀한 화면에서 본문을 확보한다 */
+.lb-fold{display:none;position:absolute;top:4px;right:4px;z-index:2;
+  width:46px;height:44px;background:none;border:none;color:var(--chalk-dim);
+  font-size:14px;line-height:1;border-radius:6px}
+.lb-fold:active{background:rgba(255,255,255,.08)}
+.lifeboard{position:sticky;top:env(safe-area-inset-top,0px)}
+.lifeboard.compact .lb-g,
+.lifeboard.compact .lb-recent{display:none}
+
+@media(max-width:940px){
+  .lb-fold{display:block}
+  /* 접었을 때는 날짜 · 소속만 남긴다 */
+  .lifeboard.compact .lb-top{padding:7px 12px 6px}
+  .lifeboard.compact .lb-date{font-size:18px}
+  .lifeboard.compact .lb-who{display:none}
+  .lifeboard.compact .lb-season{padding:5px 12px;border-top:1px solid var(--line)}
+  .lifeboard.compact .lb-season .st b{font-size:15px}
+
+  /* 터치 타겟 — 어떤 버튼도 44px 아래로 내려가지 않는다 */
+  button,.choice,.tab,.go,.menu button{touch-action:manipulation}
+  .choice{min-height:64px}
+  .choice:active{background:rgba(245,196,81,.14);border-color:rgba(245,196,81,.5);
+    transform:scale(.995)}
+  .go:active,.menu button:active,.ghost:active{background:rgba(245,196,81,.16)}
+  .navbar button:active{background:rgba(255,255,255,.06)}
+
+  /* 선택지 안의 확률/대가 줄 — 좁은 화면에서 줄바꿈이 지저분해지지 않게 */
+  .tradeoff{gap:2px 10px;font-size:11px}
+  .odds{font-size:11.5px}
+  .odds>div{gap:6px}
+}
+
+/* 작은 화면(iPhone SE / mini 등 ~400px) — 밀도를 한 단계 더 높인다 */
+@media(max-width:400px){
+  .traits{grid-template-columns:1fr}
+  .board .bit{font-size:11.5px}
+  .wrap{padding:8px 10px calc(70px + env(safe-area-inset-bottom))}
+  .lifeboard{margin:-8px -10px 10px}
+  .lb-top{padding:8px 10px 7px}
+  .lb-date{font-size:20px}
+  .lb-date .dim{display:block;margin:1px 0 0}
+  .lb-g{grid-template-columns:1fr 1fr;gap:2px 10px;padding:6px 10px}
+  .lb-g .g{font-size:11px}
+  .lb-g .gl{min-width:36px}
+  .lb-season{padding:6px 10px;gap:2px 12px}
+  .lb-season .st b{font-size:16px}
+  .scene{padding:15px 13px 14px}
+  .scene h2{font-size:19px}
+  .scene .body{font-size:15px;line-height:1.8}
+  .choice{padding:13px 12px}
+  .choice .ct{font-size:15px}
+  .chain{font-size:11.5px}
+  .chain>div b{min-width:46px;font-size:13px}
+}
+
+/* 가로 모드 — 세로가 짧으면 상태창을 아예 접는다 (선택지가 첫 화면에 들어와야 한다) */
+@media(max-height:500px) and (orientation:landscape){
+  .lifeboard .lb-g,
+  .lifeboard .lb-recent{display:none}
+  .lb-top{padding:6px 12px 5px}
+  .lb-date{font-size:17px;display:inline-block;margin-right:10px}
+  .lb-who{display:inline-block;font-size:12px}
+  .lb-team{margin-top:2px}
+  .lb-season{padding:4px 12px}
+  .lb-season .st b{font-size:15px}
+  .scene{padding:12px 14px}
+  .scene h2{font-size:18px;margin-bottom:8px}
+  .scene .body{font-size:14.5px;line-height:1.7}
+  .choice{min-height:52px;padding:10px 12px}
+}
+
+/* 홈화면에서 전체화면으로 띄웠을 때 */
+@media(display-mode:standalone){
+  body{overscroll-behavior-y:contain}   /* 당겨서 새로고침 방지 */
+}
 @media(hover:none){
   .choice:hover{background:rgba(255,255,255,.03);border-color:var(--line)}
   .choice:active{background:rgba(245,196,81,.16);border-color:var(--lamp)}

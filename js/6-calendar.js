@@ -8,10 +8,20 @@
    [40] STATE — 전역 상태 (구 [13])
    ========================================================================== */
 const G={screen:'title',p:null,ui:null,hof:[],tab:'main',hasSave:false,tq:[],
-         cal:{year:2026,month:0,queue:[],last:null}};
+         cal:{year:2026,month:0,week:0,queue:[],last:null}};
 const app=()=>document.getElementById('app');
 
-function scene(o){G.ui=o;render();save();}
+function scene(o){
+  G.ui=o;render();save();
+  /* 모바일에서 스크롤이 아래에 남아 있으면 새 장면의 첫 줄을 놓친다 */
+  try{
+    if(window.innerWidth<=940){
+      const el=document.querySelector('.scene');
+      if(el&&el.getBoundingClientRect().top<0)
+        el.scrollIntoView({block:'start',behavior:'smooth'});
+    }
+  }catch(e){}
+}
 function esc(s){return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
   .replace(/&lt;em&gt;/g,'<em>').replace(/&lt;\/em&gt;/g,'</em>');}
 
@@ -38,21 +48,39 @@ const MON=()=>MONTHS[clamp(G.cal.month,1,12)-1];
 const inSeason=()=>MON().season;
 
 /* ==========================================================================
+   [41b] 주간 시스템 (v3.0 최종)
+   시즌중(4~9월)만 4주로 쪼갠다. 비시즌은 월 1행동을 유지한다.
+   → 연 턴 수 = 시즌중 6개월×4주(24) + 비시즌 6개월(6) = 30턴.
+     전체 주간(48턴)은 비시즌에 할 일이 없어 반복감이 생긴다.
+   ========================================================================== */
+const WEEKS_IN_MONTH=4;
+const weekly=()=>MON().season;                 // 이 달이 주 단위인가
+const WEEK_LABEL=['1주차','2주차','3주차','4주차'];
+const weekFrac=()=>MON().frac/WEEKS_IN_MONTH;  // 그 주가 시즌에서 차지하는 비중
+
+/* ==========================================================================
    [42] FLOW — 캘린더 큐
    월이 페이즈 토큰 배열을 만들고, advance()가 하나씩 꺼내 쓴다.
    주간 시스템으로 확장할 때는 'action'을 4개로 늘리기만 하면 된다.
    ========================================================================== */
+/* 시즌중 한 달 = [주차 → 행동 → 그 주 경기] × 4 + 월말 이벤트.
+   주마다 행동 1회. 이벤트는 달에 한 번만 붙는다. */
+function seasonMonth(tail){
+  const q=['monthStart'];
+  for(let w=1;w<=WEEKS_IN_MONTH;w++)q.push('week'+w,'action','games');
+  return q.concat(tail||[]);
+}
 function buildMonth(m){
   switch(m){
   case 1:  return ['monthStart','action'];
   case 2:  return ['monthStart','action','event'];
   case 3:  return ['monthStart','seasonStart','action','rosterSet'];
-  case 4:  return ['monthStart','action','games','moment'];
-  case 5:  return ['monthStart','action','games','event','levelCheck'];
-  case 6:  return ['monthStart','action','games','moment','levelCheck'];
-  case 7:  return ['monthStart','action','games','teamEvent','levelCheck'];
-  case 8:  return ['monthStart','action','games','moment','levelCheck'];
-  case 9:  return ['monthStart','action','games','rank'];
+  case 4:  return seasonMonth(['moment']);
+  case 5:  return seasonMonth(['event','levelCheck']);
+  case 6:  return seasonMonth(['moment','levelCheck']);
+  case 7:  return seasonMonth(['teamEvent','levelCheck']);
+  case 8:  return seasonMonth(['moment','levelCheck']);
+  case 9:  return seasonMonth(['rank']);
   case 10: return ['monthStart','ksMoment','post','action'];
   case 11: return ['monthStart','award','traits','combo'];
   case 12: return ['monthStart','action','nat','trade','fa','contract','retire','leagueOff','yearEnd'];
@@ -77,7 +105,8 @@ function advance(){
 /* 현재 시점 라벨 — 모든 씬이 이걸 쓴다 */
 function nowLabel(extra){
   const m=MON();
-  return `${G.cal.year}년 ${m.label}${extra?' · '+extra:(m.note?' · '+m.note:'')}`;
+  const wk=(weekly()&&G.cal.week>0)?` ${WEEK_LABEL[G.cal.week-1]}`:'';
+  return `${G.cal.year}년 ${m.label}${wk}${extra?' · '+extra:(m.note&&!wk?' · '+m.note:'')}`;
 }
 
 /* ==========================================================================
@@ -90,11 +119,18 @@ function runPhase(ph){
   switch(ph){
 
   /* ── 신규: 달의 시작. 화면을 띄우지 않고 상태만 정리한다 ── */
+  /* ── 주 진입: 화면 없이 주차만 올린다 ── */
+  case 'week1':case 'week2':case 'week3':case 'week4':
+    G.cal.week=+ph.slice(4);
+    p.week=G.cal.week;
+    return 'skip';
+
   case 'monthStart':{
     const m=MON();
     p.year=G.cal.year;
     p.month=m.m;
-    p.monthLog=[];
+    G.cal.week=0;p.week=0;
+    p.monthLog=[];p.monthAcc={ip:0,er:0,ab:0,h:0};
     if(!m.season){                                   // 비시즌엔 몸이 조금 회복된다
       p.fatigue=clamp(p.fatigue-3,0,100);
       p.stress=clamp((p.stress||20)-2,0,100);
@@ -118,13 +154,16 @@ function runPhase(ph){
     const m=MON();
     if(!p.season||!m.season)return 'skip';
     if(p.status==='부상'){
+      if(weekly()&&G.cal.week!==WEEKS_IN_MONTH)return 'skip';   // 달에 한 번만 알린다
       return scene({when:nowLabel(),title:'재활실',
         body:`${m.label}. 그는 그라운드 대신 재활실에 있었다.`,
         log:['이번 달 경기에 나서지 못했다.'],cta:'계속'});
     }
+    const unit=weekly()?weekFrac():m.frac;             // 주간이면 그 주 몫만 시뮬레이션
+    const label=weekly()?`${m.label} ${WEEK_LABEL[Math.max(0,G.cal.week-1)]}`:m.label;
     const before=snapStats(p);
-    const log=simHalf(p,m.label,p.clutchBonus*.2,m.frac,{m:[m.m]});
-    p.monthLog=(p.monthLog||[]).concat(log);
+    const log=simHalf(p,label,p.clutchBonus*.2,unit,{m:[m.m]});
+    p.monthLog=(p.monthLog||[]).concat(log).slice(-6);
     return scene({when:nowLabel(),title:'경기',body:'',log,
       diff:statDiff(p,before),cta:'계속'});
   }
@@ -267,8 +306,40 @@ function setupRival(p){
   p.rival={id:a.id,name:a.name,pos,bond:50,war:0,totWar:0,team:t.id,ovr:a.ovr,peak:0,aw:a.aw};
 }
 
+/* 주간이면 행동 횟수가 4배가 된다 (시즌중 월 1회 → 4회).
+   회당 효과를 줄여 연간 총량을 월간 시절과 비슷하게 맞춘다. */
+const ACT_WEEK_SCALE=.32;
+const AS=v=>Math.round(v*(weekly()?ACT_WEEK_SCALE:1)*100)/100;
+/* 관계·취미처럼 내부 수치가 하드코딩된 행동은 실행 전후 델타를 통째로 줄인다.
+   플래그·타임라인은 이진값이므로 건드리지 않는다. */
+function scaledRun(fn,p){
+  if(!weekly())return fn(p);
+  const k=ACT_WEEK_SCALE;
+  const b={tend:Object.assign({},p.tend),rel:Object.assign({},p.rel),
+           st:Object.assign({},p.st),fan:p.fanRating,media:p.media||50,
+           stress:p.stress||0,fat:p.fatigue,tb:p.teamBoost||0,cb:p.clutchBonus||0};
+  const log=fn(p);
+  for(const x in p.tend) p.tend[x]=clamp(b.tend[x]+(p.tend[x]-b.tend[x])*k,0,100);
+  for(const x in p.rel)  p.rel[x] =clamp((b.rel[x]==null?50:b.rel[x])+(p.rel[x]-(b.rel[x]==null?50:b.rel[x]))*k,0,100);
+  for(const x in p.st)   p.st[x]  =round(b.st[x]+(p.st[x]-b.st[x])*k,1);
+  p.fanRating=clamp(b.fan+(p.fanRating-b.fan)*k,0,100);
+  p.media    =clamp(b.media+((p.media||50)-b.media)*k,0,100);
+  p.stress   =clamp(b.stress+((p.stress||0)-b.stress)*k,0,100);
+  p.fatigue  =clamp(b.fat+(p.fatigue-b.fat)*k,0,100);
+  p.teamBoost=b.tb+((p.teamBoost||0)-b.tb)*k;
+  p.clutchBonus=b.cb+((p.clutchBonus||0)-b.cb)*k;
+  return log;
+}
+/* 화면 표기 — 주간의 소수값(0.64 등)을 그대로 보여주면 지저분하다.
+   1 미만은 '소폭'으로, 그 이상은 반올림해 보여준다. */
+function ASD(v){
+  const x=AS(v), a=Math.abs(x);
+  if(a<1)return '소폭';
+  return (x>0?'+':'−')+Math.round(a);
+}
+
 /* ==========================================================================
-   [45] ACTION — 월간 행동
+   [45] ACTION — 월간/주간 행동
    원칙: 공짜 행동은 없다. 모든 선택이 무언가를 얻고 무언가를 잃는다.
    확률이 필요한 행동은 v2.1의 outcomes 엔진을 그대로 쓴다.
    ========================================================================== */
@@ -314,29 +385,29 @@ const RELATIONS=[
 
 /* 행동 정의 — cost/gain 은 버튼에 그대로 노출된다 (요구 5·7) */
 const ACTIONS={
-  teamTrain:{icon:'🏟',name:'팀 훈련',gain:'팀워크 +3 · 감독 +2 · 능력 소폭',cost:'피로 +10',
+  teamTrain:{icon:'🏟',name:'팀 훈련',gain:()=>`팀워크 ${ASD(3)} · 감독 ${ASD(2)} · 능력 소폭`,cost:()=>`피로 ${ASD(10)}`,
     run:p=>{
       const ks=R.shuffle(POS[p.pos].keys.slice());
-      const up={};up[ks[0]]=.55;up[ks[1]]=.35;grow(p,up);
-      rel(p,'team',3);rel(p,'manager',2);tend(p,{social:1,diligence:1});
-      p.fatigue=clamp(p.fatigue+10,0,100);p.trainCount++;
+      const up={};up[ks[0]]=AS(.55);up[ks[1]]=AS(.35);grow(p,up);
+      rel(p,'team',AS(3));rel(p,'manager',AS(2));tend(p,{social:AS(1),diligence:AS(1)});
+      p.fatigue=clamp(p.fatigue+AS(10),0,100);p.trainCount+=(weekly()?ACT_WEEK_SCALE:1);
       return['팀 훈련을 소화했다.'];}},
 
-  soloTrain:{icon:'💪',name:'개인 훈련',gain:'능력 +2~4',cost:'피로 +12 · 부상 위험 · 감독 관계 변화 없음',
+  soloTrain:{icon:'💪',name:'개인 훈련',gain:'능력 ↑↑',cost:'피로 ↑↑ · 부상 위험 · 감독 관계 변화 없음',
     menu:1},
 
-  focus:{icon:'⚾',name:'경기에 집중',gain:'이번 달 경기력 ↑ · 승부욕 ↑',cost:'피로 +5',
-    run:p=>{p.clutchBonus=clamp((p.clutchBonus||0)+2,-30,14);p.fatigue=clamp(p.fatigue+5,0,100);tend(p,{competitive:3});
+  focus:{icon:'⚾',name:'경기에 집중',gain:()=>`${weekly()?'이번 주':'이번 달'} 경기력 ↑ · 승부욕 ↑`,cost:()=>`피로 ${ASD(5)}`,
+    run:p=>{p.clutchBonus=clamp((p.clutchBonus||0)+AS(2),-30,14);p.fatigue=clamp(p.fatigue+AS(5),0,100);tend(p,{competitive:AS(3)});
       return['다른 건 생각하지 않기로 했다.'];}},
 
-  rest:{icon:'🛌',name:'휴식',gain:'피로 −14 · 컨디션 ↑ · 스트레스 −6',cost:'성장 없음 · 감독 신뢰 −2',
-    run:p=>{p.fatigue=clamp(p.fatigue-14,0,100);p.stress=clamp((p.stress||20)-6,0,100);
-      rel(p,'manager',-2);tend(p,{diligence:-1});updateCond(p);
+  rest:{icon:'🛌',name:'휴식',gain:()=>`피로 ${ASD(-14)} · 컨디션 ↑ · 스트레스 ${ASD(-6)}`,cost:'성장 없음 · 감독 신뢰 ↓',
+    run:p=>{p.fatigue=clamp(p.fatigue+AS(-14),0,100);p.stress=clamp((p.stress||20)-AS(6),0,100);
+      rel(p,'manager',-AS(2));tend(p,{diligence:-AS(1)});updateCond(p);
       return['하루 종일 아무것도 하지 않았다.'];}},
 
   hobby:{icon:'🎣',name:'개인 활동',gain:'스트레스 ↓',cost:'성장 없음',menu:2},
 
-  relation:{icon:'🤝',name:'인간관계',gain:'관계 +6 · 먼 훗날의 이야기',cost:'피로 +3 · 성장 없음',menu:3},
+  relation:{icon:'🤝',name:'인간관계',gain:'관계 ↑ · 먼 훗날의 이야기',cost:()=>`피로 ${ASD(3)} · 성장 없음`,menu:3},
 
   rehab:{icon:'🏥',name:'재활에 전념',gain:'복귀 앞당김',cost:'능력 정체',
     run:p=>{
@@ -402,11 +473,11 @@ function monthActions(p){
 function actionMenu(){
   const p=G.p,m=MON();
   const ids=monthActions(p);
-  return scene({when:nowLabel(),title:'이번 달 무엇을 할까',
+  return scene({when:nowLabel(),title:weekly()?'이번 주 무엇을 할까':'이번 달 무엇을 할까',
     body:bodyHint(p),month:1,
     choices:ids.map(id=>{
       const a=ACTIONS[id];
-      return {t:`${a.icon} ${a.name}`,gain:a.gain,cost:a.cost,
+      return {t:`${a.icon} ${a.name}`,gain:txt(a.gain,p),cost:txt(a.cost,p),
         reveal:a.reveal,outcomes:a.outcomes,
         next:a.menu===1?(()=>trainMenu()):a.menu===2?(()=>hobbyMenu()):a.menu===3?(()=>relationMenu()):null,
         run:a.run?(()=>{const log=a.run(p);updateCond(p);return log;}):null};
@@ -418,12 +489,12 @@ function hobbyMenu(){
   return scene({when:nowLabel(),title:'무엇을 하며 보낼까',month:1,
     body:`스트레스 ${Math.round(p.stress||20)} · 자산 ${wonText(p.money.balance)}`,
     choices:HOBBIES.filter(h=>p.money.balance>=h.cost).map(h=>({t:`${h.icon} ${h.name}`,
-      gain:h.eff.stress<0?`스트레스 ${h.eff.stress}`:null,
-      cost:[h.eff.stress>0?`스트레스 +${h.eff.stress}`:null,h.cost?wonText(h.cost):null]
+      gain:h.eff.stress<0?`스트레스 ${ASD(h.eff.stress)}`:null,
+      cost:[h.eff.stress>0?`스트레스 ${ASD(h.eff.stress)}`:null,h.cost?wonText(h.cost):null]
              .filter(Boolean).join(' · ')||null,
       run:()=>{if(h.cost)spend(p,h.cost,h.name);
-        p.stress=clamp((p.stress||20)+h.eff.stress,0,100);
-        const log=h.run(p);updateCond(p);return log;}}))
+        const log=scaledRun(q=>{q.stress=clamp((q.stress||20)+h.eff.stress,0,100);return h.run(q);},p);
+        updateCond(p);return log;}}))
       .concat([{t:'돌아간다',gain:null,cost:'다른 행동을 고른다',next:()=>actionMenu()}])});
 }
 
@@ -433,7 +504,8 @@ function relationMenu(){
     body:'지금 쌓아두는 관계가 몇 해 뒤에 돌아올 수도 있다.',
     choices:RELATIONS.map(r=>({t:`${r.name} — ${relTier(p.rel[r.id]||50)}`,
       gain:r.gain,cost:r.line,
-      run:()=>{p.fatigue=clamp(p.fatigue+3,0,100);const log=r.run(p);updateCond(p);return log;}}))
+      run:()=>{const log=scaledRun(q=>{q.fatigue=clamp(q.fatigue+3,0,100);return r.run(q);},p);
+        updateCond(p);return log;}}))
       .concat([{t:'돌아간다',gain:null,cost:'다른 행동을 고른다',next:()=>actionMenu()}])});
 }
 

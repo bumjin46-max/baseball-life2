@@ -102,13 +102,14 @@ function potRoom(p,k){
    v3.0: v2.1은 훈련 기회가 연 2회였는데 월간 시스템에서는 연 최대 9회다.
    회당 성장을 그대로 두면 커리어 WAR 중앙값이 21 → 29로 튄다(실측).
    TRAIN_SCALE로 회당 성장을 낮춰 연간 총 성장량을 v2.1 수준에 맞춘다. */
-const TRAIN_SCALE=.53;
+const TRAIN_SCALE=.68;
 function doTraining(p,t,mult0,fatMul){
   mult0=mult0||1;fatMul=fatMul===undefined?1:fatMul;
   const log=[];
-  p.trainCount++;
+  p.trainCount+=(typeof weekly==='function'&&weekly())?ACT_WEEK_SCALE:1;  // 주간이면 4분의 1씩
   const teamDev=(p.pos==='pitcher'?TEAM(p.team).pdev:TEAM(p.team).dev)/10;
-  const mult=(1+tEff(p,'train')+teamDev)*ageCurve(p)*(p.cond>=3?1.08:p.cond<=1?.85:1)*mult0*TRAIN_SCALE;
+  const wk=(typeof weekly==='function'&&weekly())?ACT_WEEK_SCALE:1;   // 주간이면 횟수가 4배
+  const mult=(1+tEff(p,'train')+teamDev)*ageCurve(p)*(p.cond>=3?1.08:p.cond<=1?.85:1)*mult0*TRAIN_SCALE*wk;
   if(t.rest){
     const r=1+tEff(p,'rest');
     p.fatigue=clamp(p.fatigue+t.fatigue*r,0,100);
@@ -126,7 +127,8 @@ function doTraining(p,t,mult0,fatMul){
       changes.push(`${SLABEL[k]} ${g>0?'+':''}${round(g,1)}`);
     }
     p.fatigue=clamp(p.fatigue+t.fatigue*(1+tEff(p,'staminaCost'))*fatMul,0,100);
-    if(t.tend)tend(p,t.tend);
+    /* 성향 변화도 훈련 횟수에 비례한다 — 주간이면 회당 1/4 (연습벌레 조건 인플레 방지) */
+    if(t.tend){const o={};for(const k in t.tend)o[k]=t.tend[k]*wk;tend(p,o);}
     if(t.risk)p.injRisk=(p.injRisk||0)+t.risk*.1;
     log.push(changes.length?changes.join('   '):'큰 변화는 없었다.');
     if(mult<0.5)log.push('예전만큼 몸이 따라오지 않는다.');
@@ -258,12 +260,19 @@ function simHalf(p,half,bonus,frac,seg){
   updateCond(p);
   const inj=rollInjury(p,full*frac*2);
   if(inj)log.push(inj);
-  /* v3.0 — 슬럼프는 그 달 성적으로 판정한다 (한 달 만에 자동 해제되지 않는다) */
-  const before0=p.pos==='pitcher'
-    ? {ip:round(s.ip-ip0,1),er:s.er-er0}
-    : {ab:s.ab-ab0,h:s.h-h0};
-  const sm=slumpCheck(p,before0);
-  if(sm)log.push(sm);
+  /* v3.0 — 슬럼프는 "그 달" 성적으로 판정한다.
+     주간에서는 한 주 표본(타수 ~15)이 너무 작아 판정이 불가능하므로
+     4주치를 monthAcc 에 모아 월말(4주차)에 한 번만 판정한다. */
+  const acc=p.monthAcc=p.monthAcc||{ip:0,er:0,ab:0,h:0};
+  acc.ip=round(acc.ip+(s.ip-ip0),1); acc.er+=s.er-er0;
+  acc.ab+=s.ab-ab0; acc.h+=s.h-h0;
+  const wkly=(typeof weekly==='function'&&weekly());
+  const monthEnd=!wkly||G.cal.week>=WEEKS_IN_MONTH;
+  if(monthEnd){
+    const sm=slumpCheck(p,acc);
+    if(sm)log.push(sm);
+    p.monthAcc={ip:0,er:0,ab:0,h:0};
+  }
   return log;
 }
 /* 구간별 하이라이트 경기 — 역사적 경기는 리그 기록에도 남는다 */
@@ -306,10 +315,13 @@ function expGrowth(p,full){ // 경기 경험 — 잠재력을 향해 서서히 �
   });
 }
 function rollInjury(p,full){
-  let c=.066*full*(1+(p.fatigue-40)/110)*(1+tEff(p,'injury'))*(1+(p.injRisk||0));
+  let c=.060*full*(1+(p.fatigue-40)/110)*(1+tEff(p,'injury'))*(1+(p.injRisk||0));
   c*= p.age>=33?1.5:p.age>=30?1.2:1;
   c*= 1-clamp((p.st.stamina-50)/220,-.2,.25);
-  if(!R.c(clamp(c,.01,.6)))return null;
+  /* v3.0 주간 — 하한을 두면 호출 횟수에 비례해 부상이 늘어난다.
+     월간 6회 시절의 하한 .01 이 주간 24회에서는 기댓값을 4배로 부풀렸다(실측 4.0회).
+     하한을 없애면 full·frac 에만 비례해 호출 빈도와 무관하게 총량이 보존된다. */
+  if(!R.c(clamp(c,0,.6)))return null;
   const sev=R.f(0,1);
   const days=sev>.85?R.i(90,160):sev>.55?R.i(35,70):R.i(10,28);
   const rehab=1-tEff(p,'rehab')*.4;
@@ -674,15 +686,17 @@ function doTrainingWith(p,t,it){
   const pr=trainSuccess(p,it);
   const ok=R.c(pr);
   const log=doTraining(p,t,it.mult*(ok?1:.15),it.fat*(ok?1:1.45));
+  const wk=(typeof weekly==='function'&&weekly())?ACT_WEEK_SCALE:1;
   if(ok){
     log.unshift(it.id==='hard'?'<em>한계를 넘었다.</em> 몸이 기억할 만한 훈련이었다.':'훈련 성공.');
-    if(it.id==='hard')tend(p,{diligence:4,competitive:3});
+    if(it.id==='hard')tend(p,{diligence:4*wk,competitive:3*wk});
   }else{
     log.unshift('<em>뜻대로 되지 않았다.</em> 몸이 따라오지 않는다.');
-    p.fatigue=clamp(p.fatigue+8,0,100);
-    if(it.inj)p.injRisk=(p.injRisk||0)+it.inj*.5;
-    tend(p,{patience:2});
+    p.fatigue=clamp(p.fatigue+8*wk,0,100);
+    if(it.inj)p.injRisk=(p.injRisk||0)+it.inj*.5*wk;
+    tend(p,{patience:2*wk});
   }
+  if(it.inj)p.injRisk=(p.injRisk||0)+it.inj*.3*(wk-1);   // 아래 고정 가산분 보정
   if(it.inj)p.injRisk=(p.injRisk||0)+it.inj*.3;
   updateCond(p);
   return log;

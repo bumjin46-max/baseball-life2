@@ -243,19 +243,30 @@ function pickPos(pos){
 }
 /* v3.0 — 세이브는 캘린더 전체(연/월/남은 큐)를 통째로 저장한다.
    월 중간 어느 지점에서도 정확히 이어진다. v2.1 세이브(save_v1)는 폐기. */
-async function save(){
+/* 저장은 400ms 디바운스로 합친다.
+   기존에는 화면마다 약 270KB 를 직렬화해 저장소에 썼다. 주간 시스템으로
+   화면이 3배가 되면서 모바일에서 눈에 띄는 렉이 됐다.
+   큐 전체를 저장하므로 마지막 한 번만 기록돼도 정확히 이어진다. */
+let _saveT=null;
+function save(){
+  if(G.noSave)return;                       // 자동 테스트용
+  if(_saveT)clearTimeout(_saveT);
+  _saveT=setTimeout(()=>{_saveT=null;saveNow();},400);
+}
+function saveFlush(){ if(_saveT){clearTimeout(_saveT);_saveT=null;} return saveNow(); }
+async function saveNow(){
   if(!G.p||G.p.retired)return;
   const u=G.ui||{};
   const c=G.cal;
   const queue=(u.choices||u.after)?[c.last].concat(c.queue):c.queue.slice();
-  await Store.set('save_v3',{v:3,p:G.p,cal:{year:c.year,month:c.month,queue,last:null},tq:G.tq,L});
+  await Store.set('save_v3',{v:3,p:G.p,cal:{year:c.year,month:c.month,week:c.week,queue,last:null},tq:G.tq,L});
   G.hasSave=true;
 }
 async function loadGame(){
   const d=await Store.get('save_v3');
   if(!d||!d.cal)return;
   G.p=d.p;G.tq=d.tq||[];L=d.L||null;
-  G.cal={year:d.cal.year,month:d.cal.month,queue:d.cal.queue||[],last:null};
+  G.cal={year:d.cal.year,month:d.cal.month,week:d.cal.week||0,queue:d.cal.queue||[],last:null};
   G.ui=null;G.screen='game';G.tab='main';
   if(!G.cal.queue.length)G.cal.queue=['action'];
   const ph=G.cal.queue.shift();G.cal.last=ph;
@@ -267,8 +278,15 @@ async function saveHof(p){
     ending:p.ending.title,mvp:p.awards.mvp,champ:p.awards.champ});
   await Store.set('hof_v1',G.hof);
 }
+/* 모바일은 앱 전환만으로도 탭이 정리된다. 숨겨지는 순간 확실히 기록한다. */
+try{
+  document.addEventListener('visibilitychange',()=>{if(document.hidden)saveFlush();});
+  window.addEventListener('pagehide',()=>{saveFlush();});
+}catch(e){}
+
 (async function boot(){
   G.hof=(await Store.get('hof_v1'))||[];
+  G.compact=!!(await Store.get('compact_v1'));
   try{await Store.del('save_v1');}catch(e){}      // v2.1 세이브 폐기
   G.hasSave=!!(await Store.get('save_v3'));
   render();
@@ -401,6 +419,12 @@ function renderNav(){
         <span class="ni">${i}</span>${l}</button>`).join('')
     : '';
 }
+/* 모바일 — 상단 상태창을 접어 본문 공간을 확보한다 */
+function toggleBoard(){
+  G.compact=!G.compact;
+  try{Store.set('compact_v1',G.compact?1:0);}catch(e){}
+  render();
+}
 function setTab(t){G.tab=t;render();try{if(t==='main')window.scrollTo({top:0,behavior:'smooth'});}catch(e){}}
 
 /* ── 타이틀 ── */
@@ -485,7 +509,8 @@ function boardHtml(p){
   const sl=(p.slump&&p.slump.active)
     ?`<span class="tagx">슬럼프${p.slump.months>1?` ${p.slump.months}개월`:''}</span>`:'';
   const mny=p.money||{balance:0,salary:0};
-  return `<div class="lifeboard">
+  return `<div class="lifeboard ${G.compact?'compact':''}">
+    <button class="lb-fold" onclick="toggleBoard()" aria-label="상태창 접기/펼치기">${G.compact?'▾':'▴'}</button>
     <div class="lb-top">
       <div class="lb-date"><b>${G.cal?G.cal.year:p.year}년 ${m.label}</b>
         <span class="dim">${m.note||''}</span></div>

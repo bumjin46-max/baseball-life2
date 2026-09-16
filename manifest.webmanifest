@@ -1,0 +1,20 @@
+{
+  "name": "야구 인생",
+  "short_name": "야구 인생",
+  "description": "한 명의 야구선수가 19세부터 은퇴까지 자신의 선택으로 살아가는 인생 시뮬레이션",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#0d1a15",
+  "theme_color": "#0d1a15",
+  "lang": "ko",
+  "icons": [
+    {
+      "src": "icon.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}
